@@ -68,6 +68,12 @@ class AuditEntry(BaseModel):
     timestamp: str = Field(default_factory=utcnow_iso)
     note: Optional[str] = None
 
+    # which front end originated the thread this transition belongs to, and
+    # (for the voice channel) enough to trace it back to a specific call.
+    channel: Optional[str] = None  # "cli" | "api" | "voice"
+    call_id: Optional[str] = None
+    transcript_ref: Optional[str] = None
+
 
 class ParsedTransactionItem(BaseModel):
     """One payment instruction extracted from free text, before it becomes a Transaction."""

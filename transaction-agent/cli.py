@@ -202,6 +202,7 @@ def run(argv: list[str]) -> int:
                 {
                     "raw_input": text,
                     "offline": args.offline,
+                    "channel": "cli",
                     "transactions": [],
                     "audit_log": [],
                     "processed_transactions": [],

@@ -9,9 +9,11 @@ No real payment rails are involved anywhere in this phase — every execution
 is simulated. Recipient resolution, durable checkpointing, and a real (if
 small) approver identity check were added on top of the original
 parse → review → approve → execute → log flow to make the graph's state
-trustworthy; this phase puts it behind an HTTP API (`api.py`, alongside the
-unchanged `cli.py`) and checks it's in good shape to be imported into
-watsonx Orchestrate later.
+trustworthy; an HTTP API (`api.py`) put it behind a service and checked it's
+in good shape to be imported into watsonx Orchestrate later; and a voice
+channel (`voice/`, built on [Bolna](https://www.bolna.ai)) puts a phone call
+in front of that same API, so a caller can approve a payment by talking to
+it. `cli.py` is unchanged and still works exactly as before.
 
 ## Flow
 
@@ -51,7 +53,10 @@ watsonx Orchestrate later.
 
 Checkpoints (including any paused interrupt) are written to SQLite as the
 graph runs, so closing the CLI mid-approval and resuming later — even in a
-brand new process — picks up exactly where it left off.
+brand new process — picks up exactly where it left off. Every audit entry
+also carries `channel` ("cli" / "api" / "voice"), and, for voice-originated
+threads, `call_id` and `transcript_ref` — so the audit trail can tell a
+voice-originated approval apart from a CLI or API one.
 
 ## State machine
 
@@ -83,17 +88,28 @@ transaction_agent/
 cli.py                         terminal front end: .invoke(), interrupt handling,
                                 --resume, prompts
 api.py                         HTTP front end (FastAPI): same .invoke()/Command(resume=...)
-                                calls, for a future voice agent or other non-terminal caller
+                                calls, for a voice agent or any other non-terminal caller
+voice/
+  state.py                     SQLite state keyed by call_sid: call_sid -> thread_id,
+                                 pending selection, per-item disambiguation queue, transcript log
+  nlu.py                        dependency-free selection/DTMF parsing + spoken-text formatting
+  adapter.py                    the actual webhook endpoints Bolna's tools call — calls api.py
+                                 over HTTP, reshapes responses into spoken_text
+  bolna_agent_config.json       the Bolna v2 agent definition (tools + system prompt)
+  register_agent.py             registers/updates the agent with Bolna's API (dry-run by default)
 smoke_test.py                   standalone watsonx.ai auth check
 tests/                          pytest suite
+VOICE_TEST_PLAN.md              manual test plan for the voice channel (see "Voice channel" below)
 ```
 
 `graph.py` never calls `print()` or `input()`. All terminal I/O lives in
-`cli.py`; all HTTP lives in `api.py`. Neither front end changes anything
-in `graph.py` — both just call `.invoke()`, `Command(resume=...)`, and
+`cli.py`; all HTTP lives in `api.py`; the voice channel lives entirely in
+`voice/`, which calls `api.py` over HTTP rather than importing the graph
+directly. None of the three front ends changes anything in `graph.py` —
+they all just call `.invoke()`, `Command(resume=...)`, and
 `graph.get_state()` the same way. See "Orchestrate readiness" below for
-why a third front end (or a native LangGraph import) can be added the same
-way, with evidence rather than just an assertion.
+why a fourth front end (or a native LangGraph import) can be added the
+same way, with evidence rather than just an assertion.
 
 ## Setup
 
@@ -175,8 +191,8 @@ users to `users.sqlite` (`--users-db`).
 
 ## HTTP API
 
-A second front end for the same graph, meant for a future voice agent (or
-any other non-interactive caller) rather than a terminal:
+A second front end for the same graph, meant for a voice agent (or any
+other non-interactive caller) rather than a terminal:
 
 ```bash
 export TRANSACTION_AGENT_API_KEY=some-secret   # defaults to "dev-local-key" if unset — dev only
@@ -187,20 +203,26 @@ Every request needs an `X-API-Key` header matching that key.
 
 | Endpoint | Body | Returns |
 |---|---|---|
-| `POST /requests` | `{raw_request, requester_id}` | `{thread_id, review_text, transactions[]}` — parsed and ready for approval |
+| `POST /requests` | `{raw_request, requester_id, channel?, call_id?, transcript_ref?, auto_resolve_recipients?}` | `{thread_id, status, review_text?, transactions?, pending_recipients?}` |
+| `POST /requests/{thread_id}/disambiguate` | `{choices: {transaction_id: {recipient_id} \| {register_new: {name, notes?}}}}` | same shape as above, once every pending recipient has a choice |
 | `POST /requests/{thread_id}/approve` | `{selected_ids, approver_id, passphrase}` | `{thread_id, results[]}` on success; `401` with a clear message on a bad passphrase |
 | `GET /requests/{thread_id}` | — | current status: `pending_recipient_disambiguation`, `pending_approval`, or `completed`, with the relevant fields for each |
 | `GET /audit/{transaction_id}` | — | full transition history for one transaction |
 
-One gap between the graph and this endpoint list: there's no endpoint for
-a caller to answer a `recipient_disambiguation` interrupt mid-request (the
-spec for this API didn't include one). Rather than leave `POST /requests`
-unable to complete, it auto-resolves any such interrupt itself — top-scored
-candidate for an `ambiguous` match, register-new for `none` — before
-returning the review to the caller (see `_auto_resolve_recipients()` in
-`api.py`). `recipient_id` on the returned transactions tells you which way
-it went. A future phase could add a dedicated endpoint (and skip the
-auto-resolve) if a caller needs to ask the user directly instead.
+`auto_resolve_recipients` defaults to `true`, preserving the original
+behavior: any `recipient_disambiguation` interrupt is resolved automatically
+(top-scored candidate for an `ambiguous` match, register-new for `none`)
+before `POST /requests` returns, so a caller that doesn't care can ignore
+disambiguation entirely (see `_auto_resolve_recipients()` in `api.py`).
+Pass `"auto_resolve_recipients": false` to get `status:
+"pending_recipient_disambiguation"` back instead and resolve it explicitly
+via `POST /requests/{thread_id}/disambiguate` — this is what the voice
+channel uses, since a phone call can just ask the caller directly rather
+than have a default guessed for them.
+
+`channel`/`call_id`/`transcript_ref` are optional metadata stamped onto
+every audit entry for the thread (see "Flow" above); `channel` defaults to
+`"api"` if omitted.
 
 Like the CLI, every request opens its own SQLite checkpoint connection via
 `build_graph()` and closes it when the request finishes — see "Orchestrate
@@ -208,6 +230,95 @@ readiness" below for why that's deliberate, not just convenient. `X-API-Key`
 is checked with a plain string compare (not constant-time) — fine for a
 single local secret in this phase, worth revisiting before anything
 internet-facing.
+
+## Voice channel
+
+A phone call as a third front end, via [Bolna](https://www.bolna.ai). Same
+principle as `cli.py`/`api.py`: `voice/adapter.py` doesn't parse requests,
+decide approvals, or execute anything — it calls `api.py` over HTTP and
+translates between its JSON and what Bolna's tool-calling / TTS needs.
+
+```
+caller ──(phone)── Bolna (STT/LLM/TTS) ──(tool-call webhooks)── voice/adapter.py ──(HTTP)── api.py ── graph.py
+```
+
+**Run it** (with `api.py` already running):
+
+```bash
+export TRANSACTION_AGENT_API_BASE_URL=http://127.0.0.1:8000
+export TRANSACTION_AGENT_API_KEY=some-secret        # must match api.py's key
+export VOICE_ADAPTER_SHARED_SECRET=some-other-secret # what Bolna's tools authenticate with
+uvicorn voice.adapter:app --reload --port 8100
+```
+
+**Register the agent** with Bolna once the adapter is reachable at a public
+URL (e.g. via `ngrok http 8100` in dev):
+
+```bash
+export BOLNA_API_KEY=...            # from the Bolna Dashboard > Developers
+export VOICE_ADAPTER_BASE_URL=https://your-tunnel-or-host.example.com
+python -m voice.register_agent            # dry run: prints the resolved config
+python -m voice.register_agent --submit   # actually creates the agent via Bolna's API
+```
+
+**Call flow**, driven by the system prompt in `voice/bolna_agent_config.json`:
+
+1. Caller states a payment request. Bolna's tool-calling passes the raw
+   transcript straight to `POST /voice/requests` — the prompt explicitly
+   tells the LLM not to reformat or restructure it; `parse_node` (via
+   `api.py`) does the actual parsing, same as any other channel.
+2. If a recipient is ambiguous or unknown, the caller resolves it one item
+   at a time via `POST /voice/requests/disambiguate` — the same
+   `interrupt()`/`Command(resume=...)` mechanics as the CLI's disambiguation
+   step, just reached through `api.py`'s `POST /requests/{id}/disambiguate`
+   instead of a terminal prompt.
+3. The review is read back item-by-item plus a total
+   (`voice/nlu.format_review_for_voice`) — spoken amounts, not "12,000.00
+   INR". The prompt instructs the LLM to read the tool's `spoken_text`
+   verbatim rather than re-deriving numbers itself.
+4. Selection (`POST /voice/requests/select`) only ever *records* a pending
+   selection and reads back its total — it never approves anything.
+   `POST /voice/requests/confirm` is the only endpoint that can call
+   `api.py`'s `/approve`, and only after seeing an explicit affirmative
+   word — the selection utterance itself is never treated as a
+   confirmation, by design (see the module docstring in `voice/adapter.py`).
+5. The PIN *is* the Phase 2 passphrase check, unweakened — `confirm_payment`
+   passes `approver_username`/`pin` straight through as
+   `approver_id`/`passphrase` to `api.py`'s `/approve`. A wrong PIN doesn't
+   clear the pending selection, so a retry doesn't need to re-state which
+   payments to approve.
+6. The final readback names each transaction's simulated result and
+   explicitly states that no real funds moved.
+
+**Design decisions worth knowing about:**
+
+- **State is keyed by `call_sid`, never `thread_id`.** Bolna fills a tool
+  call's parameters from what its LLM remembers of the conversation;
+  asking it to correctly recall and re-embed an opaque 36-character UUID
+  turn after turn is a real, avoidable failure mode. `call_sid` is
+  auto-injected by Bolna into every tool call via templating
+  (`%(call_sid)s`), so it's never something the LLM has to "remember."
+  `voice/state.py` holds the `call_sid -> thread_id` mapping (and pending
+  selection, and disambiguation progress) server-side.
+- **Every endpoint returns HTTP 200 with a `spoken_text` explaining what
+  happened, even on failure.** A phone call has no good way to surface a
+  raw HTTP error, so failures (no request started yet, nothing to confirm,
+  a rejected PIN) become something sayable instead of an opaque 4xx/5xx.
+- **DTMF is a documented convention, not a confirmed Bolna schema.**
+  Bolna's docs confirm DTMF capture exists but don't publish its exact
+  webhook shape, so `voice/nlu.parse_dtmf_selection` defines one (`*`
+  separated digits, `#` to terminate, `0`/`9` shortcuts for none/all) —
+  see `VOICE_TEST_PLAN.md`'s "Known gaps" for what a real call needs to
+  confirm.
+- **`audit_log.json` entries for a voice thread carry `channel: "voice"`,
+  `call_id`, and `transcript_ref`** (a pointer into
+  `voice/state.py`'s per-call transcript log) — see `graph.py`'s
+  `_extract_meta()`.
+
+See [`VOICE_TEST_PLAN.md`](VOICE_TEST_PLAN.md) for the five required test
+scenarios (clean approval, partial selection, voice disambiguation, wrong
+PIN, hangup-mid-flow) — what's automated in `tests/test_voice_adapter.py`
+versus what only a real call can verify, and exactly how to check each one.
 
 ## Orchestrate readiness
 
@@ -264,7 +375,12 @@ recipient/user store unit tests, that a paused thread resumes correctly
 across a simulated process restart (fresh SQLite connection, fresh graph
 object, same checkpoint file), the full HTTP API happy path plus
 wrong-passphrase and unknown/completed-thread error cases via `TestClient`,
-API-key enforcement, and the Orchestrate-readiness checks above.
+API-key enforcement, the Orchestrate-readiness checks above, the voice
+adapter's NLU parsing and every mechanical piece of the call flow (select →
+confirm gate, PIN retry, one-at-a-time disambiguation, channel/call_id/
+transcript_ref audit tagging, and a "hangup" leaving the thread parked
+rather than approved or lost) — everything short of an actual phone call,
+which is what `VOICE_TEST_PLAN.md` is for.
 
 ## Where the next phases plug in
 
@@ -289,13 +405,11 @@ API-key enforcement, and the Orchestrate-readiness checks above.
   `Command(resume=...)`. `graph.get_state(config)` is how both
   `cli.py --resume` and `GET /requests/{thread_id}` peek a pending
   interrupt without resuming it.
-- **A dedicated recipient-disambiguation endpoint**: `api.py` currently
-  auto-resolves that interrupt inside `POST /requests` (see "HTTP API"
-  above) because the endpoint list this phase specified didn't include a
-  way for a caller to answer it. A voice agent that wants to ask the user
-  directly would need a `POST /requests/{thread_id}/resolve-recipient`-style
-  endpoint instead — same interrupt/resume mechanics, just exposed rather
-  than auto-decided.
+- **A real DTMF payload from Bolna**: `voice/nlu.parse_dtmf_selection`
+  defines its own convention because Bolna's published docs don't specify
+  one — the first real call using a keypad should confirm what Bolna
+  actually sends and adjust `voice/adapter.py`'s DTMF parameter handling
+  if it differs. See `VOICE_TEST_PLAN.md`'s "Known gaps."
 - **Native watsonx Orchestrate import**: see "Orchestrate readiness" above
   — the graph itself is already in a state where this should be a
   configuration exercise (via the Orchestrate ADK CLI) rather than a code

@@ -12,14 +12,15 @@ is called exactly the way cli.py calls it — graph.invoke(...) for the first
 step, Command(resume=...) to advance past an interrupt, graph.get_state(...)
 to peek what a thread is currently waiting on.
 
-One extension not covered by the endpoints spec: recipient-disambiguation
-interrupts. There's no dedicated endpoint for a caller to answer "which
-recipient did you mean" mid-request, so POST /requests auto-resolves any
-recipient_disambiguation interrupt(s) itself (top-scored candidate for an
-ambiguous match, register-new for no match) before returning the review to
-the caller. See _auto_resolve_recipients() below and the README's
-"Orchestrate readiness" section for why this is safe and where a future
-phase could add a proper endpoint for it instead.
+Recipient-disambiguation interrupts: by default POST /requests
+auto-resolves any recipient_disambiguation interrupt(s) itself (top-scored
+candidate for an ambiguous match, register-new for no match) before
+returning the review — see _auto_resolve_recipients() below. Pass
+`"auto_resolve_recipients": false` in the request body to get the
+interrupt back instead (status="pending_recipient_disambiguation") and
+resolve it explicitly via POST /requests/{thread_id}/disambiguate — this
+is what the voice channel (voice/adapter.py) uses, so a caller can be
+asked directly rather than have a default guessed for them.
 
 Every request builds its own graph + SQLite checkpoint connection (see
 get_graph()) and closes it when the request finishes. This is deliberate,
@@ -86,12 +87,22 @@ class Settings:
 class CreateRequestBody(BaseModel):
     raw_request: str
     requester_id: str
+    channel: Optional[str] = None  # defaults to "api"; voice/adapter.py passes "voice"
+    call_id: Optional[str] = None
+    transcript_ref: Optional[str] = None
+    auto_resolve_recipients: bool = True
 
 
 class CreateRequestResponse(BaseModel):
     thread_id: str
-    review_text: str
-    transactions: list[Transaction]
+    status: str = "pending_approval"  # "pending_recipient_disambiguation" | "pending_approval"
+    review_text: Optional[str] = None
+    transactions: Optional[list[Transaction]] = None
+    pending_recipients: Optional[list[dict[str, Any]]] = None
+
+
+class DisambiguateBody(BaseModel):
+    choices: dict[str, dict[str, Any]]
 
 
 class ApproveBody(BaseModel):
@@ -123,14 +134,23 @@ class AuditResponse(BaseModel):
 # --- app factory ----------------------------------------------------------
 
 
-def _initial_state(raw_request: str, requester_id: str, offline: bool) -> dict:
+def _initial_state(
+    raw_request: str,
+    requester_id: str,
+    offline: bool,
+    channel: str,
+    call_id: Optional[str],
+    transcript_ref: Optional[str],
+) -> dict:
     return {
         "raw_input": raw_request,
-        # not consumed by the graph today (graph.py is unchanged this phase);
-        # carried on the state dict so a future graph revision can use it
-        # without an API contract change.
+        # requester_id isn't consumed by the graph; carried on the state dict
+        # so a future graph revision can use it without an API contract change.
         "requester_id": requester_id,
         "offline": offline,
+        "channel": channel,
+        "call_id": call_id,
+        "transcript_ref": transcript_ref,
         "transactions": [],
         "audit_log": [],
         "processed_transactions": [],
@@ -187,15 +207,74 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
         thread_id = str(uuid.uuid4())
         config = {"configurable": {"thread_id": thread_id}}
         state = graph.invoke(
-            _initial_state(body.raw_request, body.requester_id, settings.offline), config=config
+            _initial_state(
+                body.raw_request,
+                body.requester_id,
+                settings.offline,
+                body.channel or "api",
+                body.call_id,
+                body.transcript_ref,
+            ),
+            config=config,
         )
         interrupts = state.get("__interrupt__")
         if not interrupts:
             raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Graph completed without pausing for approval")
 
-        payload = _auto_resolve_recipients(graph, config, interrupts)
+        if body.auto_resolve_recipients:
+            payload = _auto_resolve_recipients(graph, config, interrupts)
+            return CreateRequestResponse(
+                thread_id=thread_id,
+                status="pending_approval",
+                review_text=payload["review_text"],
+                transactions=[Transaction(**t) for t in payload["transactions"]],
+            )
+
+        payload = interrupts[0].value
+        if payload["kind"] == "recipient_disambiguation":
+            return CreateRequestResponse(
+                thread_id=thread_id,
+                status="pending_recipient_disambiguation",
+                pending_recipients=payload["pending"],
+            )
         return CreateRequestResponse(
             thread_id=thread_id,
+            status="pending_approval",
+            review_text=payload["review_text"],
+            transactions=[Transaction(**t) for t in payload["transactions"]],
+        )
+
+    @app.post("/requests/{thread_id}/disambiguate", response_model=CreateRequestResponse, dependencies=[auth])
+    def disambiguate_request(thread_id: str, body: DisambiguateBody, graph=Depends(get_graph)):
+        config = {"configurable": {"thread_id": thread_id}}
+        snapshot = graph.get_state(config)
+        pending = [i for task in snapshot.tasks for i in task.interrupts]
+
+        if not pending:
+            if not snapshot.values:
+                raise HTTPException(status.HTTP_404_NOT_FOUND, f"Unknown thread {thread_id!r}")
+            raise HTTPException(status.HTTP_409_CONFLICT, f"Thread {thread_id!r} has already completed")
+        if pending[0].value["kind"] != "recipient_disambiguation":
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, f"Thread {thread_id!r} is not waiting on recipient disambiguation"
+            )
+
+        state = graph.invoke(Command(resume={"choices": body.choices}), config=config)
+        interrupts = state.get("__interrupt__")
+        if not interrupts:
+            raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, "Graph completed without reaching an approval gate")
+
+        payload = interrupts[0].value
+        if payload["kind"] == "recipient_disambiguation":
+            # still pending: resolve_recipients_node only interrupts once for
+            # every ambiguous transaction in a batch, so this shouldn't
+            # normally happen — handled defensively rather than assumed away.
+            return CreateRequestResponse(
+                thread_id=thread_id, status="pending_recipient_disambiguation", pending_recipients=payload["pending"]
+            )
+        return CreateRequestResponse(
+            thread_id=thread_id,
+            status="pending_approval",
             review_text=payload["review_text"],
             transactions=[Transaction(**t) for t in payload["transactions"]],
         )

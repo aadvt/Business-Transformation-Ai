@@ -53,6 +53,14 @@ class TransactionAgentState(TypedDict, total=False):
     audit_log: Annotated[list[dict[str, Any]], operator.add]
     processed_transactions: Annotated[list[dict[str, Any]], operator.add]
 
+    # Which front end originated this thread, set once by whoever calls the
+    # first .invoke() and left untouched afterward (no node overwrites these,
+    # so the value persists across every resume for the life of the thread).
+    # Every audit entry for the thread is tagged with these via _extract_meta().
+    channel: Optional[str]  # "cli" | "api" | "voice"
+    call_id: Optional[str]
+    transcript_ref: Optional[str]
+
     # branch-local input, only meaningful inside an execute_node Send() call.
     # Every parallel execute_node branch reads its own "transaction" as an
     # isolated input; none of them may return "transaction" as an output key,
@@ -61,17 +69,39 @@ class TransactionAgentState(TypedDict, total=False):
     transaction: dict[str, Any]
 
 
-def _audit_entry(transaction_id: str, from_status: Optional[Status], to_status: Status, note: str, timestamp: str) -> dict:
+def _extract_meta(state: TransactionAgentState) -> dict[str, Optional[str]]:
+    return {
+        "channel": state.get("channel"),
+        "call_id": state.get("call_id"),
+        "transcript_ref": state.get("transcript_ref"),
+    }
+
+
+def _audit_entry(
+    transaction_id: str,
+    from_status: Optional[Status],
+    to_status: Status,
+    note: str,
+    timestamp: str,
+    meta: Optional[dict[str, Optional[str]]] = None,
+) -> dict:
     return AuditEntry(
         transaction_id=transaction_id,
         from_status=from_status.value if from_status else None,
         to_status=to_status.value,
         timestamp=timestamp,
         note=note,
+        **(meta or {}),
     ).model_dump(mode="json")
 
 
-def _same_state_entry(transaction_id: str, status_value: str, note: str, timestamp: str) -> dict:
+def _same_state_entry(
+    transaction_id: str,
+    status_value: str,
+    note: str,
+    timestamp: str,
+    meta: Optional[dict[str, Optional[str]]] = None,
+) -> dict:
     """A logged event that isn't a state-machine transition (e.g. recipient
     resolution) — from_status/to_status are the unchanged current status."""
     return AuditEntry(
@@ -80,6 +110,7 @@ def _same_state_entry(transaction_id: str, status_value: str, note: str, timesta
         to_status=status_value,
         timestamp=timestamp,
         note=note,
+        **(meta or {}),
     ).model_dump(mode="json")
 
 
@@ -137,6 +168,7 @@ def build_graph(
     def parse_node(state: TransactionAgentState) -> dict:
         text = state["raw_input"]
         parsed = parse_offline(text) if state.get("offline") else llm_parse_fn(text)
+        meta = _extract_meta(state)
 
         now = utcnow_iso()
         transactions = []
@@ -152,12 +184,13 @@ def build_graph(
                 created_at=now,
             )
             transactions.append(tx.model_dump(mode="json"))
-            audit_entries.append(_audit_entry(tx.id, None, Status.CREATED, "Parsed from user input", now))
+            audit_entries.append(_audit_entry(tx.id, None, Status.CREATED, "Parsed from user input", now, meta))
 
         return {"transactions": transactions, "audit_log": audit_entries}
 
     def resolve_recipients_node(state: TransactionAgentState) -> dict:
         transactions = state["transactions"]
+        meta = _extract_meta(state)
 
         # resolve_recipient_fn is a read-only directory lookup: idempotent,
         # so it's safe to call before interrupt() and it will simply be
@@ -213,12 +246,13 @@ def build_graph(
                     note = "Recipient left unresolved"
             tx = {**tx, "recipient_id": recipient_id}
             updated.append(tx)
-            audit_entries.append(_same_state_entry(tx["id"], tx["status"], note, now))
+            audit_entries.append(_same_state_entry(tx["id"], tx["status"], note, now, meta))
 
         return {"transactions": updated, "audit_log": audit_entries}
 
     def present_review_node(state: TransactionAgentState) -> dict:
         now = utcnow_iso()
+        meta = _extract_meta(state)
         updated = []
         audit_entries = []
         for tx in state["transactions"]:
@@ -226,7 +260,7 @@ def build_graph(
             tx = {**tx, "status": Status.PENDING_APPROVAL.value, "entered_queue_at": now}
             updated.append(tx)
             audit_entries.append(
-                _audit_entry(tx["id"], Status.CREATED, Status.PENDING_APPROVAL, "Entered approval queue", now)
+                _audit_entry(tx["id"], Status.CREATED, Status.PENDING_APPROVAL, "Entered approval queue", now, meta)
             )
         return {
             "transactions": updated,
@@ -262,6 +296,7 @@ def build_graph(
         selected_ids = set(selected_ids_raw)
         approved_by = username
         now = utcnow_iso()
+        meta = _extract_meta(state)
 
         updated = []
         audit_entries = []
@@ -270,13 +305,17 @@ def build_graph(
                 require_legal_transition(Status(tx["status"]), Status.APPROVED)
                 tx = {**tx, "status": Status.APPROVED.value, "approved_by": approved_by, "approved_at": now}
                 audit_entries.append(
-                    _audit_entry(tx["id"], Status.PENDING_APPROVAL, Status.APPROVED, f"approved_by={approved_by}", now)
+                    _audit_entry(
+                        tx["id"], Status.PENDING_APPROVAL, Status.APPROVED, f"approved_by={approved_by}", now, meta
+                    )
                 )
             else:
                 require_legal_transition(Status(tx["status"]), Status.REJECTED)
                 tx = {**tx, "status": Status.REJECTED.value}
                 audit_entries.append(
-                    _audit_entry(tx["id"], Status.PENDING_APPROVAL, Status.REJECTED, "Not selected for approval", now)
+                    _audit_entry(
+                        tx["id"], Status.PENDING_APPROVAL, Status.REJECTED, "Not selected for approval", now, meta
+                    )
                 )
             updated.append(tx)
 
@@ -286,10 +325,15 @@ def build_graph(
         # map: one execute_node branch per transaction, approved or rejected —
         # rejected ones pass straight through so the audit trail (and
         # processed_transactions) covers every transaction, not just approved ones.
-        return [Send("execute_node", {"transaction": tx}) for tx in state["transactions"]]
+        # Send() payloads are the *entire* input a branch sees, so channel/call_id/
+        # transcript_ref must be included explicitly here or execute_node's own
+        # audit entries would lose them.
+        meta = _extract_meta(state)
+        return [Send("execute_node", {"transaction": tx, **meta}) for tx in state["transactions"]]
 
     def execute_node(state: TransactionAgentState) -> dict:
         tx = dict(state["transaction"])
+        meta = _extract_meta(state)
 
         if tx["status"] != Status.APPROVED.value:
             # Rejected (or anything else non-Approved): nothing to execute.
@@ -300,7 +344,9 @@ def build_graph(
         require_legal_transition(Status(tx["status"]), Status.PROCESSING)
         tx["status"] = Status.PROCESSING.value
         tx["execution_started_at"] = now
-        audit_entries.append(_audit_entry(tx["id"], Status.APPROVED, Status.PROCESSING, "Execution started", now))
+        audit_entries.append(
+            _audit_entry(tx["id"], Status.APPROVED, Status.PROCESSING, "Execution started", now, meta)
+        )
 
         try:
             result = execute_fn(tx)
@@ -316,7 +362,7 @@ def build_graph(
         tx["status"] = to_status.value
         tx["execution_result"] = result
         note = result.get("message") or result.get("error") or ""
-        audit_entries.append(_audit_entry(tx["id"], Status.PROCESSING, to_status, note, finish_time))
+        audit_entries.append(_audit_entry(tx["id"], Status.PROCESSING, to_status, note, finish_time, meta))
 
         return {"processed_transactions": [tx], "audit_log": audit_entries}
 

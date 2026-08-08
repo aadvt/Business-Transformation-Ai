@@ -1,0 +1,156 @@
+{
+  "agent_config": {
+    "agent_name": "Transaction Agent Voice",
+    "agent_welcome_message": "Hi, this is your payments assistant. Who would you like to pay, and how much?",
+    "tasks": [
+      {
+        "task_type": "conversation",
+        "toolchain": {
+          "execution": "sequential",
+          "pipelines": [["transcriber", "llm", "synthesizer"]]
+        },
+        "tools_config": {
+          "llm_agent": {
+            "agent_type": "simple_llm_agent",
+            "agent_flow_type": "streaming",
+            "llm_config": {
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "max_tokens": 200,
+              "temperature": 0.1
+            }
+          },
+          "synthesizer": {
+            "provider": "elevenlabs",
+            "provider_config": {
+              "voice": "Nila",
+              "voice_id": "V9LCAAi4tTlqe9JadbCo",
+              "model": "eleven_turbo_v2_5"
+            },
+            "stream": true,
+            "buffer_size": 250,
+            "audio_format": "wav"
+          },
+          "transcriber": {
+            "provider": "deepgram",
+            "model": "nova-2-phonecall",
+            "language": "en",
+            "stream": true,
+            "encoding": "linear16",
+            "sampling_rate": 16000,
+            "endpointing": 250
+          },
+          "input": { "provider": "plivo", "format": "wav" },
+          "output": { "provider": "plivo", "format": "wav" },
+          "api_tools": {
+            "tools": [
+              {
+                "name": "start_payment_request",
+                "key": "start_payment_request",
+                "description": "Call this exactly once, immediately after the caller states what they want to pay. Pass their words verbatim in transcript — do not reformat, summarize, correct, or restructure the request yourself; the backend parses it.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "transcript": {
+                      "type": "string",
+                      "description": "The caller's payment request, exactly as they said it, unedited"
+                    }
+                  },
+                  "required": ["transcript"]
+                }
+              },
+              {
+                "name": "disambiguate_recipient",
+                "key": "disambiguate_recipient",
+                "description": "Call this only when the previous tool response has status pending_recipient_disambiguation and you have just asked the caller the disambiguation question from its spoken_text. Pass their answer.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "choice_text": {
+                      "type": "string",
+                      "description": "The caller's answer to the disambiguation question: an option number, 'new', or a corrected recipient name"
+                    }
+                  },
+                  "required": ["choice_text"]
+                }
+              },
+              {
+                "name": "select_payments",
+                "key": "select_payments",
+                "description": "Call this after you have read the payment review (spoken_text from start_payment_request or disambiguate_recipient) to the caller and they have said which payments to approve.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "selection_text": {
+                      "type": "string",
+                      "description": "What the caller said to pick payments, verbatim: e.g. 'all', 'none', 'one and three'"
+                    }
+                  },
+                  "required": ["selection_text"]
+                }
+              },
+              {
+                "name": "confirm_payment",
+                "key": "confirm_payment",
+                "description": "Call this only after select_payments has returned a spoken total and you have asked the caller to explicitly confirm it, and you have their approver username and PIN. NEVER call this directly from a selection utterance — confirmation is always a separate turn.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "confirmation_text": {
+                      "type": "string",
+                      "description": "The caller's explicit confirmation word: 'confirm', 'yes', 'cancel', or similar"
+                    },
+                    "approver_username": {
+                      "type": "string",
+                      "description": "The caller's approver username, only needed once they are confirming"
+                    },
+                    "pin": {
+                      "type": "string",
+                      "description": "The caller's spoken or keyed-in PIN, digits only"
+                    }
+                  },
+                  "required": ["confirmation_text"]
+                }
+              }
+            ],
+            "tools_params": {
+              "start_payment_request": {
+                "method": "POST",
+                "url": "https://YOUR_PUBLIC_HOST/voice/requests",
+                "api_token": "YOUR_VOICE_ADAPTER_SHARED_SECRET",
+                "param": "{\"call_sid\": \"%(call_sid)s\", \"transcript\": \"%(transcript)s\"}"
+              },
+              "disambiguate_recipient": {
+                "method": "POST",
+                "url": "https://YOUR_PUBLIC_HOST/voice/requests/disambiguate",
+                "api_token": "YOUR_VOICE_ADAPTER_SHARED_SECRET",
+                "param": "{\"call_sid\": \"%(call_sid)s\", \"choice_text\": \"%(choice_text)s\"}"
+              },
+              "select_payments": {
+                "method": "POST",
+                "url": "https://YOUR_PUBLIC_HOST/voice/requests/select",
+                "api_token": "YOUR_VOICE_ADAPTER_SHARED_SECRET",
+                "param": "{\"call_sid\": \"%(call_sid)s\", \"selection_text\": \"%(selection_text)s\"}"
+              },
+              "confirm_payment": {
+                "method": "POST",
+                "url": "https://YOUR_PUBLIC_HOST/voice/requests/confirm",
+                "api_token": "YOUR_VOICE_ADAPTER_SHARED_SECRET",
+                "param": "{\"call_sid\": \"%(call_sid)s\", \"confirmation_text\": \"%(confirmation_text)s\", \"approver_username\": \"%(approver_username)s\", \"pin\": \"%(pin)s\"}"
+              }
+            }
+          }
+        },
+        "task_config": {
+          "call_terminate": 300,
+          "hangup_after_silence": 15
+        }
+      }
+    ]
+  },
+  "agent_prompts": {
+    "task_1": {
+      "system_prompt": "You are a payments voice assistant for the Transaction Agent. You NEVER parse payment requests, decide approvals, or move money yourself — every one of those decisions is made by tools you call, and your job is only to talk to the caller and call the right tool at the right time, in this exact order:\n\n1. When the caller states a payment request, call start_payment_request with their EXACT words in transcript. Do not reword, correct, total up, or restructure what they said — pass it through unedited. Do not attempt to parse amounts or recipients yourself.\n\n2. Read the tool's spoken_text field back to the caller VERBATIM — word for word. Do not recompute amounts, do not paraphrase numbers, do not add or omit anything. This applies to every tool response in this conversation, always.\n\n3. If the response's status is pending_recipient_disambiguation, spoken_text already contains the question to ask (which recipient did they mean, with numbered options, or whether to add a new recipient). Wait for the caller's answer, then call disambiguate_recipient with their answer in choice_text. Repeat this step if the next response is still pending_recipient_disambiguation — there may be more than one recipient to clarify.\n\n4. Once status is pending_approval, spoken_text is the full payment review with a total. Ask the caller which payments to approve if they haven't already said. When they answer, call select_payments with their exact words in selection_text.\n\n5. The tool's response to select_payments will contain a spoken total. Read it back and explicitly ask the caller to confirm — for example, ask them to say 'confirm' to proceed. Do NOT skip this step and do NOT treat the selection answer from step 4 as a confirmation. These must be two separate turns.\n\n6. Only after the caller has explicitly said a confirmation word do you ask for their approver username and PIN if you don't already have them, then call confirm_payment with confirmation_text, approver_username, and pin. If the caller says something that isn't a clear yes or no, ask them to say 'confirm' or 'cancel' again — do not guess.\n\n7. If confirm_payment's status is pin_rejected, tell the caller their PIN wasn't recognized (using its spoken_text) and ask them to say or key in their PIN again. Do not ask them to restate which payments to approve — that selection is remembered.\n\n8. Once status is completed, read the final spoken_text, which includes a reminder that no real funds moved, since every execution in this system is simulated.\n\nAlways speak the numbers in a tool's spoken_text exactly as written — never re-derive or estimate an amount yourself. If a caller goes quiet or the call is ending before a payment is confirmed, do not attempt to approve anything on their behalf — simply end the call; the payment stays safely parked and can be resumed on a future call."
+    }
+  }
+}
