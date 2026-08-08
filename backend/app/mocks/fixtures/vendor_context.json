@@ -1,0 +1,37 @@
+{
+  "4c34118b-bbe1-4016-885d-e6bc7917b3b0": {
+    "last_terms": { "unit_price_paise": 1450, "lead_time_days": 2, "payment_terms_days": 30, "agreed_at": "2026-08-07T04:41:00+00:00" },
+    "history_summary": "Long-standing fastener supplier for Chakan plant, 214 orders completed at a 91% on-time rate. Recently expedited a delayed M8 bolt shipment after a carrier breakdown, agreeing to a 2-day lead time.",
+    "briefing": "Shree Balaji is a reliable fastener vendor who just agreed to expedite your last order — greet them warmly and reference the recent 2-day turnaround.",
+    "guardrails": { "max_unit_price_paise": 1600, "max_lead_time_days": 4, "requires_human_above_paise": 500000000 },
+    "memory_source": "SUPERMEMORY"
+  },
+  "1799a38c-a9ed-4d03-b666-4784d6346a7b": {
+    "last_terms": { "unit_price_paise": 1450, "lead_time_days": 2, "payment_terms_days": 30, "agreed_at": "2026-08-07T04:41:00+00:00" },
+    "history_summary": "High-reliability CNC precision vendor, 401 orders completed at 96% on-time rate. Recently stepped in as an alternate sourcing candidate for a fastener delay and agreed to a 2-day expedited lead time.",
+    "briefing": "Kohinoor Precision is your most reliable vendor and just helped cover an urgent order — open with thanks for the fast turnaround.",
+    "guardrails": { "max_unit_price_paise": 1700, "max_lead_time_days": 5, "requires_human_above_paise": 500000000 },
+    "memory_source": "SUPERMEMORY"
+  },
+  "d0461e77-fbca-487c-9349-e0eb64d1dedf": {
+    "last_terms": null,
+    "history_summary": "Industrial tooling vendor in Coimbatore with a mixed reliability record, 68% on-time rate and 7 open disputes. A quality rejection on the current jig fixture batch is under review.",
+    "briefing": "Coromandel Tooling has an open quality dispute on the current batch — confirm they are aware before discussing new orders.",
+    "guardrails": { "max_unit_price_paise": 900, "max_lead_time_days": 7, "requires_human_above_paise": 200000000 },
+    "memory_source": "DB_ONLY"
+  },
+  "1f085369-1380-4c55-9cbc-f447ccd95df9": {
+    "last_terms": null,
+    "history_summary": "Raw steel trader in Jaipur with a weaker reliability record, 61% on-time rate. Currently flagged for a forecasted price spike on cold-rolled steel ahead of the next order cycle.",
+    "briefing": "Marudhar Steel is facing a forecasted price increase — confirm current pricing before committing to any new volume.",
+    "guardrails": { "max_unit_price_paise": 550, "max_lead_time_days": 10, "requires_human_above_paise": 300000000 },
+    "memory_source": "UNAVAILABLE"
+  },
+  "b987144e-5e0d-4bb4-b8f8-ec9cf6b54d9f": {
+    "last_terms": { "unit_price_paise": 8500, "lead_time_days": 1, "payment_terms_days": 15, "agreed_at": "2026-06-12T10:00:00+00:00" },
+    "history_summary": "Trusted logistics partner for Chennai-region freight, 512 orders completed at 93% on-time rate with very few disputes.",
+    "briefing": "Sundaram Logistics is a dependable freight partner — routine call, no known open issues.",
+    "guardrails": { "max_unit_price_paise": 9500, "max_lead_time_days": 3, "requires_human_above_paise": 150000000 },
+    "memory_source": "SUPERMEMORY"
+  }
+}

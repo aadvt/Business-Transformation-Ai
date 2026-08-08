@@ -1,0 +1,8 @@
+[
+  { "name": "SENTINEL", "status": "RUNNING", "current_task": "Scanning carrier telemetry + TTM forecast feeds", "last_updated_at": "2026-08-09T06:00:00+00:00", "disruption_id": null },
+  { "name": "DIAGNOSIS", "status": "RUNNING", "current_task": "Root-causing QC rejection for Coromandel batch", "last_updated_at": "2026-08-09T05:58:00+00:00", "disruption_id": "228bdcbe-3b9e-42a4-a84f-2f42c48ec664" },
+  { "name": "SOURCING", "status": "IDLE", "current_task": null, "last_updated_at": "2026-08-07T03:40:00+00:00", "disruption_id": null },
+  { "name": "NEGOTIATION", "status": "IDLE", "current_task": null, "last_updated_at": "2026-08-07T04:41:00+00:00", "disruption_id": null },
+  { "name": "SETTLEMENT", "status": "DONE", "current_task": "Queued August settlement batch", "last_updated_at": "2026-08-07T04:45:00+00:00", "disruption_id": "981f074f-9332-4b66-a24d-ffcaff0144cf" },
+  { "name": "GOVERNANCE", "status": "BLOCKED", "current_task": "Awaiting human approval for price-lock decision", "last_updated_at": "2026-08-08T22:30:00+00:00", "disruption_id": "6947d32f-c8f4-4cba-ac9b-398529becdb8" }
+]
