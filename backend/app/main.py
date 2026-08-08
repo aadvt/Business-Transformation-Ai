@@ -2,13 +2,14 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.db import keepalive
 from app.db.session import check_connectivity
 from app.mocks.scripted_replay import run_heartbeat, run_scripted_replay
+from app.observability import configure_logging, set_correlation_id
 from app.routers import (
     agents,
     approvals,
@@ -23,7 +24,7 @@ from app.routers import (
     vendors,
 )
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+configure_logging(logging.INFO)
 logger = logging.getLogger("sanjeevani")
 
 _background_tasks: list[asyncio.Task] = []
@@ -65,6 +66,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    """Every log line emitted while handling this request — including from the
+    LLM and Guardian layers — carries this id. Honours an inbound
+    X-Correlation-ID so a trace can span the frontend and the voice agent too."""
+    cid = set_correlation_id(request.headers.get("X-Correlation-ID"))
+    response = await call_next(request)
+    response.headers["X-Correlation-ID"] = cid
+    return response
 
 app.include_router(agents.router)
 app.include_router(disruptions.router)

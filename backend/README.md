@@ -150,17 +150,77 @@ anyone opening this repo mid-hackathon knows what to trust without hitting the A
 
 | Integration | Status | Notes |
 |---|---|---|
-| watsonx (LLM reasoning) | **STUB** | Not called; seeded data stands in for agent output |
-| Guardian (AI safety/guardrails) | **STUB** | `guardian: {status, passed}` fields are hand-authored in seed data |
+| watsonx.ai (LLM reasoning) | **LIVE** | Real `ibm/granite-4-h-small` calls via `app/llm/`, IAM token exchange cached, ~0.6–2.7s typical latency. Verify with `python scripts/smoke_llm.py`. Degrades to StubLLM on failure rather than erroring. |
+| Granite Guardian (AI safety) | **STUB — surrogate mode** | The gate is live and discriminating, but **no `granite-guardian-*` model is available on this account's region/plan** (verified: `eu-de` `foundation_model_specs` lists 15 models, none of them Guardian). Risk scoring currently runs Guardian's risk definitions through `granite-4-h-small` instead. Every verdict carries `mode=LLM_SURROGATE` and `is_real_guardian=False`. **Do not present this as Granite Guardian.** Flips to real automatically if a Guardian model becomes available. |
 | Supermemory (vendor memory) | **STUB** | `memory_source` field models the concept; no real memory store wired |
 | Verification (GSTIN/Udyam checks) | **STUB (real offline logic)** | `app/services/gstin.py` does real structural+checksum validation; does not call the live GST portal |
-| TTM (Granite time-series forecasting) | **STUB** | `/forecast/{sku}` does real linear-trend extrapolation over real seeded data, but not the actual granite-timeseries-ttm-r2 model — `model` field always reports `RULE_BASED` honestly |
+| TTM (Granite time-series forecasting) | **NOT YET WIRED** | `/forecast/{sku}` does real linear-trend extrapolation over real seeded data; `model` field reports `RULE_BASED` honestly. Good news for Phase 4: `ibm/granite-ttm-512-96-r2`, `-1024-96-r2` and `-1536-96-r2` **are** available on this account. |
 | Orchestrate | **NOT YET WIRED** | No integration point exists yet |
 | Neon Postgres | **LIVE** | Pooled connection for app traffic, direct connection for seed/schema — see `CLAUDE.md` |
 
 **LIVE** means calling a real IBM/external service (or, for Neon, a real
 database). Update this table (and `metrics_demo.json`) as each remaining
 integration goes from STUB → LIVE.
+
+### Checking the IBM wiring
+
+```bash
+python scripts/smoke_llm.py
+# configured provider : auto
+# watsonx configured  : True
+# model: ibm/granite-4-h-small | provider: WATSONX | 780ms | parsed OK
+# watsonx.ai is LIVE.
+
+python scripts/smoke_guardian.py
+# groundedness: PASS   [clean]
+# groundedness: FAIL   [ungrounded]
+```
+
+Both exit non-zero if the live call fails or degrades, so they work as a
+pre-demo check. `smoke_llm.py` exits 1 if the answer came from the stub.
+
+## The model layer (`app/llm/`)
+
+Every agent goes through `LLMClient` — no agent ever calls an HTTP model
+endpoint directly.
+
+```python
+from app.llm import get_llm, prompts
+
+llm = get_llm()
+result = llm.complete(
+    prompts.DIAGNOSIS_NARRATIVE_V1,   # never an inline prompt string
+    user_payload,
+    schema=MyPydanticModel,           # structured output, parsed + validated
+    tag=prompts.TAG_DIAGNOSIS_NARRATIVE,
+    disruption_id=disruption.id,      # optional; links the agent_runs row
+)
+result.parsed        # MyPydanticModel instance, never a raw string
+result.provider      # "WATSONX" | "STUB"
+result.degraded      # True if watsonx failed and the stub answered
+```
+
+What it guarantees:
+
+- **Structured output or an exception.** `schema=` appends the model's JSON
+  Schema to the system prompt, strips markdown fences, salvages a bare `{...}`
+  from surrounding prose, and on failure does exactly **one** repair round-trip
+  feeding the parse error back. If that also fails it raises `LLMSchemaError` —
+  a raw model string never reaches the database.
+- **The demo never dies.** watsonx failures retry 3× with exponential backoff
+  (only on timeouts/5xx/429 — a 400 is our bug and won't get better), then
+  degrade to `StubLLM` with a loud log and an `agent_runs` error row.
+- **Everything is observable.** Every LLM and Guardian call writes an
+  `agent_runs` row (tag, model id, latency, token usage, 500-char input/output
+  summaries, error). All logs are single-line JSON carrying a correlation id
+  that follows an inbound `X-Correlation-ID` header.
+- **Provider selection**: `LLM_PROVIDER=stub` or missing credentials → StubLLM,
+  no network. This is what the test suite uses.
+
+`app/llm/transport.py` is the only file that knows watsonx's wire format —
+swapping to the official `ibm-watsonx-ai` SDK is a one-file change. We use raw
+`httpx` because the SDK pulls pandas, numpy and the IBM COS/S3 SDK (~25MB of
+transitive dependencies) to do what is, for us, two POST requests.
 
 ## Auth
 

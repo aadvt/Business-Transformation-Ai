@@ -5,7 +5,10 @@ re-litigate them. Read this before changing conventions.
 
 ## Phase
 
-**Phase 2: real persistence, still no agent/LLM logic.** The database is Neon
+**Phase 3: the model layer is live.** See "Model layer" below. Phase 2's
+persistence notes remain in force.
+
+**Phase 2: real persistence.** The database is Neon
 Postgres, reached via SQLAlchemy 2.0 (sync engine, psycopg v3 driver), or
 sqlite as an offline fallback (see "Two databases" below). No Alembic —
 `Base.metadata.create_all` plus an idempotent seed script (`app/seed.py`).
@@ -17,10 +20,88 @@ repository-backed DB query) gated on `settings.use_mocks`, and
 `tests/test_contract.py` passes against both. Do not remove the mock path;
 it's the documented emergency fallback if Postgres is unreachable.
 
-Still not present: any LLM/agent call, watsonx/Guardian/Supermemory/
-Orchestrate integration, or the TTM model itself. `/forecast/{sku}` and
-`/vendors/{id}/context` are real DB queries now, but their "intelligence" is
-still simple/rule-based — see README's integration status table.
+Still not present after Phase 3: the agents themselves (nothing calls the model
+layer in the request path yet), Supermemory, Orchestrate, and the TTM model.
+`/forecast/{sku}` and `/vendors/{id}/context` are real DB queries, but their
+"intelligence" is still rule-based — see README's integration status table.
+
+## Model layer (Phase 3) — `app/llm/`
+
+**Every agent goes through `LLMClient`. No agent ever calls an HTTP model
+endpoint directly.** If you find yourself importing `httpx` in an agent, stop.
+
+- `app/llm/client.py` — `LLMClient` ABC + `WatsonxLLM` + `StubLLM` + `get_llm()`.
+  Subclasses implement exactly one primitive, `_generate(system, user,
+  max_tokens, temperature, tag)`. Everything that must behave identically across
+  providers (schema injection, fence stripping, the repair round-trip,
+  `agent_runs` recording) lives on the base class so the two implementations
+  cannot drift.
+- `app/llm/transport.py` — the ONLY file that knows watsonx's wire format (IAM
+  token exchange + cache, `/ml/v1/text/chat`, `/ml/v1/text/generation`, retry
+  policy). Swapping to the official SDK is a one-file change; that boundary is
+  the whole point of the module, don't leak wire details past it. We use raw
+  httpx deliberately — the SDK drags in pandas/numpy/COS-SDK for two POSTs.
+- `app/llm/prompts.py` — **every** system prompt, named and versioned. No
+  inline prompt strings anywhere else, no exceptions. Never edit a `_V1` in
+  place once an agent depends on it; add `_V2` and switch the caller.
+- `app/llm/guardian.py` — risk scoring, see below.
+- `app/llm/runs.py` — `agent_runs` recording, fail-soft by design.
+
+### Rules that are load-bearing
+
+- **A raw model string must never reach the database.** Call with `schema=` and
+  use `result.parsed`. On unparseable output the client does ONE repair
+  round-trip (feeding the parse error back) and then raises `LLMSchemaError` —
+  it never returns half-valid data. Callers decide the fallback.
+- **Degrade, never crash.** `WatsonxLLM` retries 3× with exponential backoff on
+  timeouts/5xx/429 only (a 400 is our bug and won't improve), then falls back to
+  `StubLLM`, logs loudly, and writes an error `agent_runs` row. The returned
+  `LLMResult` reports `provider="STUB"` and `degraded=True` so callers and the
+  audit trail can always tell what actually answered. Don't add a code path that
+  lets a model failure raise into a request handler.
+- **Stub responses are real prose, not placeholders.** `app/llm/stub_responses.py`
+  is what the system says during a degraded demo. Keep new entries realistic and
+  schema-valid — `tests/test_llm.py` asserts every canned response parses.
+- **Tags are ≤30 chars** (the `agent_runs.agent` column width) and defined in
+  `prompts.py` as `TAG_*` constants. A test enforces this.
+
+### Guardian: two modes, and why
+
+`GuardianVerdict.status` is `OK` | `UNAVAILABLE`; `GuardianVerdict.mode` is
+`GRANITE_GUARDIAN` | `LLM_SURROGATE` | `NONE`.
+
+- **`passed=True` with `status=UNAVAILABLE` is NOT an approval.** It exists so a
+  non-enforcing caller doesn't block the pipeline. Enforcing callers (Phase 6's
+  negotiation write-back) must check `verdict.needs_human_review`, never bare
+  `passed`.
+- **`mode=LLM_SURROGATE` is not Granite Guardian.** No `granite-guardian-*`
+  model is available on our current account/region (eu-de exposes 15 models,
+  none of them Guardian), so the gate falls back to running Guardian's risk
+  definitions through `granite-4-h-small`. It discriminates correctly (verified
+  by `scripts/smoke_guardian.py`) and keeps the safety gate functional, but
+  anything that reports provenance to a user or a judge must check
+  `verdict.is_real_guardian`. Never describe surrogate output as Granite
+  Guardian in a UI, a pitch, or a README.
+- Mode is resolved lazily and cached process-wide, so a missing Guardian model
+  costs one 404, not one per call. A genuine outage (not `model_not_supported`)
+  stays `UNAVAILABLE` rather than silently downgrading the safety layer.
+
+### Observability
+
+Every LLM and Guardian call writes an `agent_runs` row (tag, model id, latency,
+token usage, 500-char truncated input/output summaries, error). Recording is
+fail-soft — a DB problem degrades to a log line, because observability must
+never be why a demo call fails. Logs are single-line JSON via
+`app/observability.py`, carrying a correlation id set per request from an
+inbound `X-Correlation-ID` (or generated). Use `extra={...}` for structured
+fields rather than f-stringing values into the message.
+
+### Secrets
+
+watsonx credentials live in `.env` only (gitignored). `.env.example` carries
+empty placeholders and comments. Never log the API key or an IAM token — the
+transport deliberately logs IAM failures by status code only, because IBM's
+error envelope can echo the request back.
 
 ## Two databases: pooled vs. direct
 

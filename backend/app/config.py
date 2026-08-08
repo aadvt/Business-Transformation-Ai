@@ -31,10 +31,25 @@ class Settings(BaseSettings):
     # Falls back to database_url when unset (e.g. for sqlite).
     database_url_direct: str = ""
 
-    # --- Future integrations (unused in this phase) ---
+    # --- LLM / watsonx.ai (Phase 3) ---
+    # "auto"    -> use watsonx when credentials are present, else stub
+    # "watsonx" -> force watsonx (still degrades to stub if a call fails)
+    # "stub"    -> never touch the network
+    llm_provider: str = "auto"
+    watsonx_url: str = "https://eu-de.ml.cloud.ibm.com"
     watsonx_api_key: str = ""
     watsonx_project_id: str = ""
-    guardian_api_url: str = ""
+    watsonx_model_id: str = "ibm/granite-4-h-small"
+    watsonx_api_version: str = "2024-05-31"
+    watsonx_iam_url: str = "https://iam.cloud.ibm.com/identity/token"
+    llm_timeout_seconds: float = 20.0
+    llm_max_attempts: int = 3
+
+    # --- Granite Guardian (Phase 3) ---
+    guardian_model_id: str = "ibm/granite-guardian-3-8b"
+    guardian_enabled: bool = True
+
+    # --- Future integrations (unused in this phase) ---
     supermemory_api_key: str = ""
     verification_api_key: str = ""
     orchestrate_api_key: str = ""
@@ -46,6 +61,10 @@ class Settings(BaseSettings):
     # separate FastAPI app from this one.
     transaction_agent_base_url: str = "http://127.0.0.1:8001"
     transaction_agent_api_key: str = "dev-local-key"
+
+    @property
+    def watsonx_configured(self) -> bool:
+        return bool(self.watsonx_api_key and self.watsonx_project_id and self.watsonx_url)
 
     @property
     def cors_origins_list(self) -> list[str]:
