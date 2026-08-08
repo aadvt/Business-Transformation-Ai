@@ -1,9 +1,13 @@
 from collections import Counter
 
 from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
+from app.config import settings
+from app.db.session import get_session
 from app.deps import require_api_key
 from app.mocks.loader import store
+from app.repositories import dashboard as repo
 from app.schemas.dashboard import DashboardSummary, StageCount
 from app.schemas.enums import DisruptionStage
 from app.schemas.money import format_inr, utc_now_iso
@@ -14,7 +18,10 @@ _CLOSED_STAGES = {DisruptionStage.CLOSED, DisruptionStage.SETTLED, DisruptionSta
 
 
 @router.get("/summary", response_model=DashboardSummary)
-def get_dashboard_summary() -> DashboardSummary:
+def get_dashboard_summary(session: Session = Depends(get_session)) -> DashboardSummary:
+    if not settings.use_mocks:
+        return repo.get_summary(session)
+
     disruptions = list(store.disruptions.values())
     active = [d for d in disruptions if d.stage not in _CLOSED_STAGES]
     exposure_at_risk = sum(d.exposure.total_paise for d in active)

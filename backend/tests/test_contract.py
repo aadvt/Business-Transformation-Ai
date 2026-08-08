@@ -53,13 +53,19 @@ def test_get_disruption(client):
 
 
 def test_list_vendors(client):
+    # Phase 2 seeds 24 vendors (14 primary + 10 backup pool) — see app/seed.py —
+    # so this checks shape/plausibility rather than a Phase-1-fixture-specific count.
     r = client.get("/api/v1/vendors")
     assert r.status_code == 200
-    assert r.json()["total"] == 5
+    body = r.json()
+    assert body["total"] > 0
+    assert body["total"] == len(body["items"])
 
     r = client.get("/api/v1/vendors", params={"search": "Pune"})
     assert r.status_code == 200
-    assert r.json()["total"] == 2
+    search_body = r.json()
+    assert search_body["total"] > 0
+    assert all("pune" in (v["name"] + v["category"] + v["city"]).lower() for v in search_body["items"])
 
 
 def test_get_vendor(client):
@@ -73,7 +79,8 @@ def test_vendor_dues(client):
     assert r.status_code == 200
     body = r.json()
     assert body["total_due_paise"] > 0
-    assert len(body["items"]) == 5
+    assert len(body["items"]) > 0
+    assert body["total_due_paise"] == sum(i["total_due_paise"] for i in body["items"])
 
 
 def test_vendor_context(client):

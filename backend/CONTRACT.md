@@ -1,5 +1,11 @@
 # Sanjeevani Backend — API Contract
 
+**This document is unchanged since Phase 1.** Phase 2 swapped the data source
+(JSON fixtures → Neon Postgres, `USE_MOCKS=true` keeps the old fixture path as
+a fallback) but every endpoint, request/response shape, and status code below
+is identical — that was the explicit constraint. Example payloads below now
+reflect real seeded data (see `app/seed.py`) rather than static fixtures.
+
 Base URL (dev): `http://localhost:8000`
 All routes are versioned under `/api/v1`. Auth: optional `X-API-Key` header (see
 README — off by default in dev). Full interactive docs at `/docs`.

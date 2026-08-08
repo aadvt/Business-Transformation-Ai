@@ -48,3 +48,19 @@ def utc_now() -> datetime:
 
 def utc_now_iso() -> str:
     return utc_now().isoformat()
+
+
+def as_utc(dt: datetime) -> datetime:
+    """Normalizes a datetime to tz-aware UTC.
+
+    sqlite's DateTime(timezone=True) columns silently drop tzinfo on round-trip
+    (it has no native tz-aware type) — every datetime this app ever writes to a
+    `_at` column is already UTC by convention, so a naive value read back is
+    reattached to UTC rather than the local zone. Postgres preserves tzinfo
+    natively, so this is a no-op there.
+    """
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
+def to_iso(dt: datetime) -> str:
+    return as_utc(dt).isoformat()

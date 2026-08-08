@@ -1,10 +1,13 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.db import keepalive
+from app.db.session import check_connectivity
 from app.mocks.scripted_replay import run_heartbeat, run_scripted_replay
 from app.routers import (
     agents,
@@ -20,23 +23,38 @@ from app.routers import (
     vendors,
 )
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+logger = logging.getLogger("sanjeevani")
+
 _background_tasks: list[asyncio.Task] = []
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not settings.use_mocks:
+        try:
+            rtt_ms = check_connectivity()
+            logger.info(f"Database connectivity OK — SELECT 1 round-trip {rtt_ms:.0f}ms (cold Neon compute shows up here)")
+        except Exception:
+            logger.exception("Database connectivity check FAILED at startup — is DATABASE_URL reachable?")
+        keepalive.start()
+
     _background_tasks.append(asyncio.create_task(run_heartbeat()))
     if settings.mock_live_replay:
         _background_tasks.append(asyncio.create_task(run_scripted_replay()))
+
     yield
+
     for task in _background_tasks:
         task.cancel()
+    if not settings.use_mocks:
+        keepalive.stop()
 
 
 app = FastAPI(
     title="Sanjeevani Backend",
-    description="Contract-and-mocks phase backend for the Sanjeevani supply-chain disruption system.",
-    version="0.1.0",
+    description="Sanjeevani supply-chain disruption system backend.",
+    version="0.2.0",
     lifespan=lifespan,
 )
 

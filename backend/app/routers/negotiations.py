@@ -1,7 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
 
+from app.config import settings
+from app.constants import DEFAULT_ORG_ID
+from app.db.session import get_session
 from app.deps import require_api_key
 from app.mocks.loader import store
+from app.repositories import negotiations as repo
 from app.schemas.disruptions import NegotiationTerm
 from app.schemas.enums import DisruptionStage, WSEventType
 from app.schemas.settlement import NegotiationOutcomeRequest, NegotiationOutcomeResponse
@@ -17,11 +22,10 @@ def _find_disruption_by_negotiation_id(negotiation_id: str):
     return None
 
 
-@router.post("/{negotiation_id}/outcome", response_model=NegotiationOutcomeResponse)
-async def post_negotiation_outcome(negotiation_id: str, body: NegotiationOutcomeRequest) -> NegotiationOutcomeResponse:
+def _post_outcome_mock(negotiation_id: str, body: NegotiationOutcomeRequest) -> tuple[NegotiationOutcomeResponse, bool]:
     cached = store.negotiation_outcome_idempotency.get(body.idempotency_key)
     if cached is not None:
-        return NegotiationOutcomeResponse.model_validate(cached)
+        return NegotiationOutcomeResponse.model_validate(cached), True
 
     disruption = _find_disruption_by_negotiation_id(negotiation_id)
     if disruption is None:
@@ -41,16 +45,30 @@ async def post_negotiation_outcome(negotiation_id: str, body: NegotiationOutcome
     disruption.stage = new_stage
 
     response = NegotiationOutcomeResponse(
-        negotiation_id=negotiation_id,
-        status=negotiation.status,
-        disruption_id=disruption.id,
-        new_stage=new_stage,
+        negotiation_id=negotiation_id, status=negotiation.status, disruption_id=disruption.id, new_stage=new_stage,
     )
     store.negotiation_outcome_idempotency[body.idempotency_key] = response.model_dump()
+    return response, False
 
-    await live_feed.broadcast(
-        WSEventType.NEGOTIATION_UPDATE,
-        payload={"negotiation_id": negotiation_id, "status": negotiation.status},
-        disruption_id=disruption.id,
-    )
+
+@router.post("/{negotiation_id}/outcome", response_model=NegotiationOutcomeResponse)
+async def post_negotiation_outcome(
+    negotiation_id: str, body: NegotiationOutcomeRequest, session: Session = Depends(get_session)
+) -> NegotiationOutcomeResponse:
+    if settings.use_mocks:
+        response, is_replay = _post_outcome_mock(negotiation_id, body)
+    else:
+        response, is_replay = repo.post_outcome(
+            session, negotiation_id, body.outcome, body.final_unit_price_paise, body.final_lead_time_days,
+            body.final_payment_terms_days, body.transcript_summary, body.idempotency_key, DEFAULT_ORG_ID,
+        )
+        if response is None:
+            raise HTTPException(status_code=404, detail="Negotiation not found")
+
+    if not is_replay:
+        await live_feed.broadcast(
+            WSEventType.NEGOTIATION_UPDATE,
+            payload={"negotiation_id": negotiation_id, "status": response.status},
+            disruption_id=response.disruption_id,
+        )
     return response

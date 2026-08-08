@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sanjeevani Backend",
-    "description": "Contract-and-mocks phase backend for the Sanjeevani supply-chain disruption system.",
-    "version": "0.1.0"
+    "description": "Sanjeevani supply-chain disruption system backend.",
+    "version": "0.2.0"
   },
   "paths": {
     "/api/v1/agents/status": {

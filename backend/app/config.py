@@ -18,9 +18,20 @@ class Settings(BaseSettings):
 
     # --- Mock data behavior ---
     mock_live_replay: bool = True
+    # When true, routers read from the in-memory JSON-fixture store (Phase 1
+    # behavior) instead of the database. Fallback switch for when Postgres is
+    # unreachable (e.g. venue wifi blocks outbound 5432).
+    use_mocks: bool = False
+
+    # --- Database (Phase 2) ---
+    # Pooled Neon connection (hostname has "-pooler") — used for all app request
+    # traffic. Also accepts sqlite:///./sanjeevani.db as an offline fallback.
+    database_url: str = "sqlite:///./sanjeevani.db"
+    # Direct (non-pooled) Neon connection — used ONLY by create_all/seed scripts.
+    # Falls back to database_url when unset (e.g. for sqlite).
+    database_url_direct: str = ""
 
     # --- Future integrations (unused in this phase) ---
-    database_url: str = ""
     watsonx_api_key: str = ""
     watsonx_project_id: str = ""
     guardian_api_url: str = ""
@@ -39,6 +50,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def database_url_direct_resolved(self) -> str:
+        return self.database_url_direct or self.database_url
 
 
 settings = Settings()
