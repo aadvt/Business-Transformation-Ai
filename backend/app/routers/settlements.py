@@ -11,6 +11,7 @@ from app.schemas.settlement import (
     SettlementExecuteRequest,
     SettlementExecuteResponse,
 )
+from app.transaction_agent_client import stage_settlement_batch
 from app.ws_manager import live_feed
 
 router = APIRouter(prefix="/api/v1", tags=["settlements"], dependencies=[Depends(require_api_key)])
@@ -29,7 +30,9 @@ async def execute_settlement(batch_id: str, body: SettlementExecuteRequest) -> S
     batch.status = "EXECUTING"
     batch.updated_at = utc_now_iso()
 
-    response = SettlementExecuteResponse(batch=batch)
+    handoff = await stage_settlement_batch(batch, requested_by=body.executed_by)
+
+    response = SettlementExecuteResponse(batch=batch, transaction_agent=handoff)
     store.settlement_execute_idempotency[body.idempotency_key] = response.model_dump()
 
     await live_feed.broadcast(

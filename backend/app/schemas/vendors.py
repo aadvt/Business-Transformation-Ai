@@ -21,6 +21,8 @@ class Vendor(Envelope):
     languages: list[str] = Field(default_factory=list)
     city: str
     state: str
+    lat: float
+    lng: float
     reliability_score_0_100: int
     on_time_rate: float
     orders_completed: int

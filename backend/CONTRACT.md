@@ -164,6 +164,8 @@ Full disruption detail — the richest object in the system. 404 if not found.
       "languages": ["hi", "mr", "en"],
       "city": "Pune",
       "state": "Maharashtra",
+      "lat": 18.5204,
+      "lng": 73.8567,
       "reliability_score_0_100": 82,
       "on_time_rate": 0.91,
       "orders_completed": 214,
@@ -261,9 +263,31 @@ cached response — it does not error and does not re-apply the decision. 404 if
 
 **Request:** `{ "idempotency_key": "...", "executed_by": "finance.ops@mahe-industries.in" }`
 
-**Response:** `{ "batch": { ...SettlementBatch, "status": "EXECUTING" } }`
+**Response:**
+```json
+{
+  "batch": { "...SettlementBatch": "...", "status": "EXECUTING" },
+  "transaction_agent": {
+    "thread_id": "b3f1...-uuid",
+    "status": "pending_approval",
+    "review_text": "1. ₹18,45,000 to Shree Balaji Auto Components\n2. ..."
+  }
+}
+```
 
 Idempotent on `idempotency_key`, same pattern as approvals.
+
+`transaction_agent` is the result of handing this batch off to the
+transaction-agent service (`../transaction-agent`) as a `POST /requests`
+natural-language payment request — see
+`app/transaction_agent_client.py`. **Best-effort, not authoritative**:
+`null` if transaction-agent is unreachable or not running; Sanjeevani's own
+settlement state (`batch.status`) still transitions to `EXECUTING`
+regardless. When present, `status` is transaction-agent's own thread
+status (`pending_approval` | `pending_recipient_disambiguation`) — a human
+still has to approve the thread on transaction-agent's side (CLI, its own
+API, or the voice channel) before anything actually executes there; this
+call only stages it.
 
 ---
 

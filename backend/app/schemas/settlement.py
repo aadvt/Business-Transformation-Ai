@@ -30,8 +30,21 @@ class SettlementExecuteRequest(ApiModel):
     executed_by: str
 
 
+class TransactionAgentHandoff(ApiModel):
+    """Result of staging this batch with the transaction-agent service
+    (../transaction-agent) as a POST /requests natural-language payment
+    request. Absent (null) if transaction-agent was unreachable — that
+    service is a best-effort downstream integration, not a hard dependency
+    of settlement execute."""
+
+    thread_id: str
+    status: str
+    review_text: str | None = None
+
+
 class SettlementExecuteResponse(ApiModel):
     batch: SettlementBatch
+    transaction_agent: TransactionAgentHandoff | None = None
 
 
 class SettlementConfirmRequest(ApiModel):
