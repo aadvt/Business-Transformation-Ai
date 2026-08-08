@@ -1,16 +1,22 @@
-export function formatINR(value: number): string {
-  if (value >= 10000000) return `₹${(value / 10000000).toFixed(2)} Cr`;
-  if (value >= 100000) return `₹${(value / 100000).toFixed(2)} L`;
-  if (value >= 1000) return `₹${(value / 1000).toFixed(1)} K`;
-  return `₹${value}`;
+// Most money values ship from the backend as pre-formatted `_display`
+// strings (see backend/CLAUDE.md) — these helpers exist only for the rare
+// case of a client-computed sum that has no backend-provided display string.
+
+export function formatPaiseShort(paise: number): string {
+  const rupees = Math.abs(paise) / 100;
+  const sign = paise < 0 ? "-" : "";
+  if (rupees >= 1_00_00_000) return `${sign}₹${(rupees / 1_00_00_000).toFixed(1)}Cr`;
+  if (rupees >= 1_00_000) return `${sign}₹${(rupees / 1_00_000).toFixed(1)}L`;
+  if (rupees >= 1_000) return `${sign}₹${(rupees / 1_000).toFixed(1)}K`;
+  return `${sign}₹${rupees.toFixed(0)}`;
 }
 
-export function formatINRFull(value: number): string {
+export function formatPaiseFull(paise: number): string {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
     currency: "INR",
     maximumFractionDigits: 0,
-  }).format(value);
+  }).format(paise / 100);
 }
 
 export function formatTimeAgo(iso: string): string {

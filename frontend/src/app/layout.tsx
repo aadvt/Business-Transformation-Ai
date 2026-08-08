@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
-import "@carbon/styles/css/styles.css";
 import "./globals.css";
-import { SanjeevaniProvider } from "@/lib/store";
+import { AppProviders } from "@/lib/providers";
 import AppShell from "@/components/AppShell";
 
 export const metadata: Metadata = {
@@ -13,9 +12,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en">
       <body>
-        <SanjeevaniProvider>
+        <AppProviders>
           <AppShell>{children}</AppShell>
-        </SanjeevaniProvider>
+        </AppProviders>
       </body>
     </html>
   );

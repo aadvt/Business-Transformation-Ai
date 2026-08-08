@@ -1,57 +1,75 @@
 "use client";
 
-import { Money, WarningAltFilled, FlowData, CheckmarkOutline } from "@carbon/icons-react";
-import { useSanjeevani } from "@/lib/store";
-import { formatINR } from "@/lib/format";
+import { motion } from "framer-motion";
+import { Activity, AlertTriangle, CheckCircle2, IndianRupee } from "lucide-react";
+import { useDashboardSummary, useDisruption, useDisruptions, useVendors } from "@/lib/queries";
 import StatTile from "@/components/StatTile";
 import ApprovalCard from "@/components/ApprovalCard";
 import DisruptionRow from "@/components/DisruptionRow";
-import { VENDORS } from "@/lib/mockData";
+import TileGrid from "@/components/ui/TileGrid";
+import Skeleton from "@/components/ui/Skeleton";
+import PageHeader, { EmptyState, SectionHeading } from "@/components/PageHeader";
+
+function ApprovalCardLoader({ id }: { id: string }) {
+  const { data, isLoading } = useDisruption(id);
+  if (isLoading || !data) return <Skeleton className="h-52 max-w-lg" />;
+  return <ApprovalCard disruption={data} />;
+}
 
 export default function WarRoomPage() {
-  const { disruptions, approve, reject, totalOpenExposureINR, pendingApprovalsCount } = useSanjeevani();
+  const { data: summary, isLoading: summaryLoading } = useDashboardSummary();
+  const { data: pending, isLoading: pendingLoading } = useDisruptions("AWAITING_APPROVAL");
+  const { data: allDisruptions, isLoading: allLoading } = useDisruptions();
+  const { data: vendors, isLoading: vendorsLoading } = useVendors();
 
-  const awaitingApproval = disruptions.filter((d) => d.status === "awaiting_approval");
-  const otherDisruptions = disruptions
-    .filter((d) => d.status !== "awaiting_approval")
-    .sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime());
-
-  const activeCount = disruptions.filter((d) => d.status === "active" || d.status === "negotiating").length;
-  const settledTodayCount = disruptions.filter((d) => d.status === "settled").length;
+  const otherDisruptions = (allDisruptions?.items ?? [])
+    .filter((d) => d.stage !== "AWAITING_APPROVAL")
+    .sort((a, b) => new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime());
 
   return (
     <div>
-      <h1 className="sanjeevani-page-title">War Room</h1>
-      <p className="sanjeevani-page-subtitle">Live view of every disruption Sanjeevani is sensing, sourcing around, and settling.</p>
+      <PageHeader
+        title="War Room"
+        subtitle="Live view of every disruption Sanjeevani is sensing, sourcing around, and settling."
+      />
 
-      <div className="stat-grid">
-        <StatTile label="Open financial exposure" value={formatINR(totalOpenExposureINR)} icon={Money} tone="alert" />
-        <StatTile label="Disruptions in motion" value={String(activeCount)} icon={FlowData} />
-        <StatTile label="Awaiting your approval" value={String(pendingApprovalsCount)} icon={WarningAltFilled} tone={pendingApprovalsCount > 0 ? "alert" : "default"} />
-        <StatTile label="Settled" value={String(settledTodayCount)} icon={CheckmarkOutline} tone="positive" />
-      </div>
+      {summaryLoading || !summary ? (
+        <Skeleton className="mb-8 h-28" />
+      ) : (
+        <TileGrid>
+          <StatTile label="Open financial exposure" value={summary.exposure_at_risk_display} icon={IndianRupee} tone="alert" />
+          <StatTile label="Disruptions in motion" value={String(summary.active_disruptions)} icon={Activity} />
+          <StatTile
+            label="Awaiting your approval"
+            value={String(pending?.total ?? 0)}
+            icon={AlertTriangle}
+            tone={(pending?.total ?? 0) > 0 ? "alert" : "default"}
+          />
+          <StatTile label="Closed today" value={String(summary.disruptions_closed_today)} icon={CheckCircle2} tone="positive" />
+        </TileGrid>
+      )}
 
-      <section className="sanjeevani-section">
-        <div className="sanjeevani-section__heading">
-          <h2 className="sanjeevani-section__title">Pending your approval</h2>
-        </div>
-        {awaitingApproval.length === 0 ? (
-          <div className="sanjeevani-section__empty">Nothing needs your sign-off right now.</div>
+      <section className="mb-10">
+        <SectionHeading count={pending?.total}>Pending your approval</SectionHeading>
+        {pendingLoading ? (
+          <Skeleton className="h-52 max-w-lg" />
+        ) : (pending?.items.length ?? 0) === 0 ? (
+          <EmptyState>Nothing needs your sign-off right now.</EmptyState>
         ) : (
-          <div className="approval-card-grid">
-            {awaitingApproval.map((d) => (
-              <ApprovalCard key={d.id} disruption={d} onApprove={approve} onReject={reject} />
+          <div className="flex flex-col gap-4">
+            {pending!.items.map((d) => (
+              <ApprovalCardLoader key={d.id} id={d.id} />
             ))}
           </div>
         )}
       </section>
 
-      <section className="sanjeevani-section">
-        <div className="sanjeevani-section__heading">
-          <h2 className="sanjeevani-section__title">Disruption activity</h2>
-        </div>
-        {otherDisruptions.length === 0 ? (
-          <div className="sanjeevani-section__empty">No other activity yet.</div>
+      <section className="mb-10">
+        <SectionHeading count={otherDisruptions.length}>Disruption activity</SectionHeading>
+        {allLoading ? (
+          <Skeleton className="h-32" />
+        ) : otherDisruptions.length === 0 ? (
+          <EmptyState>No other activity yet.</EmptyState>
         ) : (
           <div>
             {otherDisruptions.map((d) => (
@@ -61,31 +79,44 @@ export default function WarRoomPage() {
         )}
       </section>
 
-      <section className="sanjeevani-section">
-        <div className="sanjeevani-section__heading">
-          <h2 className="sanjeevani-section__title">Vendor directory</h2>
-        </div>
-        <div className="vendor-table">
-          <div className="vendor-table__row vendor-table__row--head">
-            <span>Vendor</span>
-            <span>Category</span>
-            <span>City</span>
-            <span>Reliability</span>
-          </div>
-          {VENDORS.map((v) => (
-            <div className="vendor-table__row" key={v.id}>
-              <span className="vendor-table__name">{v.name}</span>
-              <span>{v.category}</span>
-              <span>{v.city}</span>
-              <span className="vendor-table__reliability">
-                <span className="vendor-table__bar">
-                  <span className="vendor-table__bar-fill" style={{ width: `${v.reliabilityPct}%` }} />
-                </span>
-                {v.reliabilityPct}%
-              </span>
+      <section className="mb-10">
+        <SectionHeading count={vendors?.total}>Vendor directory</SectionHeading>
+        {vendorsLoading ? (
+          <Skeleton className="h-40" />
+        ) : (
+          <div className="glass-panel overflow-hidden rounded-2xl">
+            <div className="grid grid-cols-[1.6fr_1fr_0.9fr_1.1fr] gap-4 border-b border-white/[0.07] px-5 py-3 text-[0.625rem] font-semibold tracking-[0.1em] text-ink-faint uppercase">
+              <span>Vendor</span>
+              <span>Category</span>
+              <span>City</span>
+              <span>Reliability</span>
             </div>
-          ))}
-        </div>
+            {(vendors?.items ?? []).map((v, i) => (
+              <motion.div
+                key={v.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: i * 0.04 }}
+                className="grid grid-cols-[1.6fr_1fr_0.9fr_1.1fr] items-center gap-4 border-b border-white/[0.04] px-5 py-3 text-[0.8125rem] transition-colors last:border-b-0 hover:bg-white/[0.035]"
+              >
+                <span className="font-medium text-ink">{v.name}</span>
+                <span className="text-ink-muted">{v.category}</span>
+                <span className="text-ink-muted">{v.city}</span>
+                <span className="flex items-center gap-2.5">
+                  <span className="h-1 w-16 overflow-hidden rounded-full bg-white/10">
+                    <motion.span
+                      className="block h-full rounded-full bg-gradient-to-r from-accent to-positive"
+                      initial={{ width: 0 }}
+                      animate={{ width: `${v.reliability_score_0_100}%` }}
+                      transition={{ delay: 0.15 + i * 0.05, duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                    />
+                  </span>
+                  <span className="tabular-money text-ink-muted">{v.reliability_score_0_100}%</span>
+                </span>
+              </motion.div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

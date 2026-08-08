@@ -1,34 +1,22 @@
-import { Tag } from "@carbon/react";
-import { PIPELINE_STAGES } from "@/lib/types";
-import type { Disruption } from "@/lib/types";
+import Badge from "./ui/Badge";
+import type { DisruptionStage } from "@/lib/types";
 
-type TagColor =
-  | "red"
-  | "magenta"
-  | "purple"
-  | "blue"
-  | "cyan"
-  | "teal"
-  | "green"
-  | "gray"
-  | "cool-gray"
-  | "warm-gray"
-  | "high-contrast"
-  | "outline";
-
-const STATUS_CONFIG: Record<Disruption["status"], { type: TagColor; label: (d: Disruption) => string }> = {
-  active: { type: "blue", label: (d) => PIPELINE_STAGES[d.stageIndex].label },
-  awaiting_approval: { type: "red", label: () => "Awaiting approval" },
-  negotiating: { type: "purple", label: () => "Negotiating" },
-  settled: { type: "green", label: () => "Settled" },
-  rejected: { type: "gray", label: () => "Rejected" },
+const STAGE_CONFIG: Record<DisruptionStage, { tone: "accent" | "alert" | "positive" | "progress" | "idle"; label: string }> = {
+  DETECTED: { tone: "progress", label: "Sensing" },
+  DIAGNOSED: { tone: "progress", label: "Diagnosis" },
+  SOURCING: { tone: "progress", label: "Sourcing" },
+  AWAITING_APPROVAL: { tone: "alert", label: "Awaiting approval" },
+  APPROVED: { tone: "accent", label: "Approved" },
+  REJECTED: { tone: "idle", label: "Rejected" },
+  NEGOTIATING: { tone: "accent", label: "Negotiating" },
+  NEGOTIATED: { tone: "accent", label: "Negotiated" },
+  SETTLEMENT_PENDING: { tone: "accent", label: "Settlement pending" },
+  SETTLED: { tone: "positive", label: "Settled" },
+  CLOSED: { tone: "positive", label: "Closed" },
+  FAILED: { tone: "alert", label: "Failed" },
 };
 
-export default function StatusTag({ disruption }: { disruption: Disruption }) {
-  const config = STATUS_CONFIG[disruption.status];
-  return (
-    <Tag type={config.type} size="sm">
-      {config.label(disruption)}
-    </Tag>
-  );
+export default function StatusTag({ stage }: { stage: DisruptionStage }) {
+  const config = STAGE_CONFIG[stage];
+  return <Badge tone={config.tone}>{config.label}</Badge>;
 }
