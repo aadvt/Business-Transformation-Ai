@@ -84,6 +84,47 @@ async function main() {
       console.error(JSON.stringify(pnBody.error ?? pnBody, null, 2));
     }
   }
+
+  // 4. Inspect the token itself via debug_token — reveals which WABA ID(s)
+  //    it's scoped to (granular_scopes[].target_ids), which lets us find
+  //    the WhatsApp Business Account without already knowing its ID.
+  console.log("\nInspecting token scopes via /debug_token...");
+  const debugRes = await fetch(
+    `https://graph.facebook.com/${GRAPH_VERSION}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(
+      token
+    )}`
+  );
+  const debugBody = await debugRes.json();
+  if (!debugRes.ok || debugBody.error) {
+    console.log("(debug_token not accessible with this token — skipping.)");
+    console.log(JSON.stringify(debugBody.error ?? debugBody, null, 2));
+    return;
+  }
+  console.log(JSON.stringify(debugBody.data, null, 2));
+
+  const wabaIds = new Set();
+  for (const scope of debugBody.data?.granular_scopes ?? []) {
+    if (scope.scope?.startsWith("whatsapp_business")) {
+      for (const id of scope.target_ids ?? []) wabaIds.add(id);
+    }
+  }
+
+  for (const wabaId of wabaIds) {
+    console.log(`\nListing all phone numbers under WABA ${wabaId}...`);
+    const listRes = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${wabaId}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating,platform_type&access_token=${encodeURIComponent(
+        token
+      )}`
+    );
+    const listBody = await listRes.json();
+    if (listRes.ok && !listBody.error) {
+      console.log("PASSED WABA phone number list:");
+      console.log(JSON.stringify(listBody, null, 2));
+    } else {
+      console.error("FAILED WABA phone number list:");
+      console.error(JSON.stringify(listBody.error ?? listBody, null, 2));
+    }
+  }
 }
 
 main().catch((err) => {
