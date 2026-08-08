@@ -64,6 +64,26 @@ async function main() {
       console.log("\n(No WhatsApp phone numbers endpoint access from this ID — expected if this token's id isn't a WABA.)");
     }
   }
+
+  // 3. Direct lookup of a specific WhatsApp phone number ID, if provided.
+  //    Read-only — confirms the token can see and manage this number.
+  const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  if (phoneNumberId) {
+    console.log(`\nLooking up phone number ID ${phoneNumberId}...`);
+    const pnRes = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,platform_type,throughput&access_token=${encodeURIComponent(
+        token
+      )}`
+    );
+    const pnBody = await pnRes.json();
+    if (pnRes.ok && !pnBody.error) {
+      console.log("PASSED phone number lookup:");
+      console.log(JSON.stringify(pnBody, null, 2));
+    } else {
+      console.error("FAILED phone number lookup:");
+      console.error(JSON.stringify(pnBody.error ?? pnBody, null, 2));
+    }
+  }
 }
 
 main().catch((err) => {
