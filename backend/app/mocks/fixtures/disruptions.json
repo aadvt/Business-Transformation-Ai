@@ -1,0 +1,199 @@
+[
+  {
+    "id": "981f074f-9332-4b66-a24d-ffcaff0144cf",
+    "type": "DELIVERY_DELAY",
+    "stage": "SETTLEMENT_PENDING",
+    "detected_at": "2026-08-07T03:12:00+00:00",
+    "vendor": {
+      "id": "4c34118b-bbe1-4016-885d-e6bc7917b3b0",
+      "name": "Shree Balaji Auto Components",
+      "gstin": "27AABCS1429B1ZP"
+    },
+    "affected_po_ids": ["3dd81f7b-8b67-46d7-9447-1ea317c77fd7", "2c7c0476-fc94-431b-8d24-f472c438f50d"],
+    "headline": "M8 hex bolt shipment 6 days behind schedule, line stoppage risk at Chakan plant",
+    "exposure": {
+      "total_paise": 1850000000,
+      "total_display": "₹1,85,00,000",
+      "confidence": 0.87,
+      "breakdown": [
+        {
+          "label": "Idle assembly line cost",
+          "amount_paise": 1200000000,
+          "amount_display": "₹1,20,00,000",
+          "basis": "6 days of Chakan line-3 downtime at historical ₹20L/day idle cost"
+        },
+        {
+          "label": "Expedited air freight surcharge",
+          "amount_paise": 450000000,
+          "amount_display": "₹45,00,000",
+          "basis": "Quoted air-freight premium over the original sea-freight booking"
+        },
+        {
+          "label": "Contractual delay penalty (downstream OEM)",
+          "amount_paise": 200000000,
+          "amount_display": "₹20,00,000",
+          "basis": "0.5% per day penalty clause in OEM supply contract, capped at 5 days"
+        }
+      ]
+    },
+    "diagnosis": {
+      "root_cause": "TRANSPORT_BREAKDOWN",
+      "narrative": "Carrier's truck suffered an axle failure on NH48 near Lonavala; replacement vehicle dispatch was delayed by monsoon traffic restrictions.",
+      "evidence": [
+        "GPS ping gap of 14 hours on carrier tracking API",
+        "Carrier support ticket #CT-88213 confirms axle failure",
+        "Weather advisory: NH48 heavy-vehicle restriction 05:00-11:00 IST"
+      ],
+      "guardian": { "status": "PASSED", "passed": true }
+    },
+    "candidates": [
+      {
+        "vendor_id": "1799a38c-a9ed-4d03-b666-4784d6346a7b",
+        "name": "Kohinoor Precision Pvt Ltd",
+        "match_score": 0.88,
+        "verification": {
+          "status": "VERIFIED",
+          "gstin_status": "VERIFIED",
+          "udyam_status": "VERIFIED",
+          "checked_at": "2026-08-07T03:40:00+00:00",
+          "source": "GST_PORTAL_STUB"
+        },
+        "quoted_lead_time_days": 2,
+        "quoted_unit_price_paise": 1450
+      }
+    ],
+    "approval": {
+      "id": "a52a6e18-ccbc-4fba-9237-7c0a845a8c02",
+      "status": "APPROVED",
+      "requested_at": "2026-08-07T04:00:00+00:00",
+      "decided_at": "2026-08-07T04:22:00+00:00",
+      "decided_by": "priya.sharma@mahe-industries.in",
+      "channel": "WEB"
+    },
+    "negotiation": {
+      "id": "192864e3-7595-45fe-8a2b-16c4ce44aa27",
+      "vendor_id": "1799a38c-a9ed-4d03-b666-4784d6346a7b",
+      "status": "AGREED",
+      "opening_terms": { "unit_price_paise": 1600, "lead_time_days": 3, "payment_terms_days": 30 },
+      "final_terms": { "unit_price_paise": 1450, "lead_time_days": 2, "payment_terms_days": 30 },
+      "rounds": 3,
+      "transcript_summary": "Vendor agreed to expedite to 2-day lead time and hold pricing within guardrail after volume commitment for next quarter.",
+      "guardian": { "status": "PASSED", "passed": true }
+    },
+    "timeline": [
+      { "stage": "DETECTED", "at": "2026-08-07T03:12:00+00:00", "agent": "SENTINEL", "note": "Delivery delay signal raised from carrier tracking gap" },
+      { "stage": "DIAGNOSED", "at": "2026-08-07T03:20:00+00:00", "agent": "DIAGNOSIS", "note": "Root cause identified as transport breakdown" },
+      { "stage": "SOURCING", "at": "2026-08-07T03:35:00+00:00", "agent": "SOURCING", "note": "Alternate vendor candidates matched and verified" },
+      { "stage": "AWAITING_APPROVAL", "at": "2026-08-07T04:00:00+00:00", "agent": "GOVERNANCE", "note": "Escalated to plant manager for approval" },
+      { "stage": "APPROVED", "at": "2026-08-07T04:22:00+00:00", "agent": "GOVERNANCE", "note": "Approved via web dashboard" },
+      { "stage": "NEGOTIATING", "at": "2026-08-07T04:25:00+00:00", "agent": "NEGOTIATION", "note": "Voice negotiation started with Kohinoor Precision" },
+      { "stage": "NEGOTIATED", "at": "2026-08-07T04:41:00+00:00", "agent": "NEGOTIATION", "note": "Terms agreed at ₹14.50/unit, 2-day lead time" },
+      { "stage": "SETTLEMENT_PENDING", "at": "2026-08-07T04:45:00+00:00", "agent": "SETTLEMENT", "note": "Queued into August settlement batch" }
+    ],
+    "detector_source": "RULE_BASED"
+  },
+  {
+    "id": "6947d32f-c8f4-4cba-ac9b-398529becdb8",
+    "type": "PRICE_SHOCK",
+    "stage": "AWAITING_APPROVAL",
+    "detected_at": "2026-08-08T22:05:00+00:00",
+    "vendor": {
+      "id": "1f085369-1380-4c55-9cbc-f447ccd95df9",
+      "name": "Marudhar Steel Traders",
+      "gstin": "08AAFCM3345H1ZK"
+    },
+    "affected_po_ids": ["f4361b97-bac1-45bd-b37f-50205b2d5c52"],
+    "headline": "TTM forecast flags 18% cold-rolled steel price spike ahead of next PO cycle",
+    "exposure": {
+      "total_paise": 920000000,
+      "total_display": "₹92,00,000",
+      "confidence": 0.74,
+      "breakdown": [
+        {
+          "label": "Projected cost increase on Q3 steel order",
+          "amount_paise": 780000000,
+          "amount_display": "₹78,00,000",
+          "basis": "18% forecast price delta applied to committed Q3 order volume of 40 tonnes"
+        },
+        {
+          "label": "Hedging / early-lock premium",
+          "amount_paise": 140000000,
+          "amount_display": "₹14,00,000",
+          "basis": "Estimated premium to lock current pricing before the forecast breach date"
+        }
+      ]
+    },
+    "diagnosis": {
+      "root_cause": "FINANCIAL_DISTRESS",
+      "narrative": "Vendor's regional supplier base is passing through a raw-ore cost increase; TTM model detected the leading indicator two weeks before spot price movement.",
+      "evidence": [
+        "Granite TTM forecast breach probability 0.81 for SKU CRS-2MM",
+        "Vendor's last two invoices show 4% and 6% sequential price creep"
+      ],
+      "guardian": { "status": "PASSED", "passed": true }
+    },
+    "candidates": [],
+    "approval": {
+      "id": "9fa01c6e-d636-4009-ab03-c2d49ba11bc3",
+      "status": "PENDING",
+      "requested_at": "2026-08-08T22:30:00+00:00",
+      "decided_at": null,
+      "decided_by": null,
+      "channel": null
+    },
+    "negotiation": null,
+    "timeline": [
+      { "stage": "DETECTED", "at": "2026-08-08T22:05:00+00:00", "agent": "SENTINEL", "note": "TTM forecast breach signal raised for SKU CRS-2MM" },
+      { "stage": "DIAGNOSED", "at": "2026-08-08T22:15:00+00:00", "agent": "DIAGNOSIS", "note": "Correlated with vendor invoice price creep" },
+      { "stage": "AWAITING_APPROVAL", "at": "2026-08-08T22:30:00+00:00", "agent": "GOVERNANCE", "note": "Escalated for early-lock purchase decision" }
+    ],
+    "detector_source": "TTM_FORECAST"
+  },
+  {
+    "id": "228bdcbe-3b9e-42a4-a84f-2f42c48ec664",
+    "type": "QUALITY_REJECTION",
+    "stage": "DETECTED",
+    "detected_at": "2026-08-09T05:50:00+00:00",
+    "vendor": {
+      "id": "d0461e77-fbca-487c-9349-e0eb64d1dedf",
+      "name": "Coromandel Tooling Works",
+      "gstin": "33AAACC2210F1ZR"
+    },
+    "affected_po_ids": ["f1dff8c0-47ed-4770-8372-141902e687a3"],
+    "headline": "Incoming QC rejected 12% of jig fixture batch for dimensional tolerance failure",
+    "exposure": {
+      "total_paise": 260000000,
+      "total_display": "₹26,00,000",
+      "confidence": 0.55,
+      "breakdown": [
+        {
+          "label": "Rejected batch replacement cost",
+          "amount_paise": 180000000,
+          "amount_display": "₹18,00,000",
+          "basis": "12% of ₹1.5Cr batch value flagged non-conforming by QC"
+        },
+        {
+          "label": "Rework and re-inspection labor",
+          "amount_paise": 80000000,
+          "amount_display": "₹8,00,000",
+          "basis": "Estimated QC + rework hours at standard shop rate"
+        }
+      ]
+    },
+    "diagnosis": {
+      "root_cause": "UNKNOWN",
+      "narrative": "Initial signal only — diagnosis agent has not yet completed root-cause analysis for this batch.",
+      "evidence": [
+        "QC scan report #QC-55210 flags 34 of 280 units out of tolerance"
+      ],
+      "guardian": { "status": "PENDING", "passed": false }
+    },
+    "candidates": [],
+    "approval": null,
+    "negotiation": null,
+    "timeline": [
+      { "stage": "DETECTED", "at": "2026-08-09T05:50:00+00:00", "agent": "SENTINEL", "note": "Quality rejection signal raised from incoming QC scan" }
+    ],
+    "detector_source": "RULE_BASED"
+  }
+]

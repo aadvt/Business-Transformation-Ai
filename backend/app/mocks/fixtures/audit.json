@@ -1,0 +1,18 @@
+{
+  "981f074f-9332-4b66-a24d-ffcaff0144cf": [
+    { "id": "c6d35d39-a93c-46f8-b587-5fd077a098af", "at": "2026-08-07T03:12:00+00:00", "agent": "SENTINEL", "action": "SIGNAL_RAISED", "detail": "Carrier tracking gap exceeded 12h threshold", "input_summary": "GPS ping stream for shipment SHP-88213", "output_summary": "DELIVERY_DELAY disruption opened" },
+    { "id": "792ebb69-5f3c-4057-a032-baeac334e167", "at": "2026-08-07T03:20:00+00:00", "agent": "DIAGNOSIS", "action": "ROOT_CAUSE_ASSIGNED", "detail": "Correlated GPS gap with carrier support ticket #CT-88213", "input_summary": "Carrier telemetry + support ticket feed", "output_summary": "root_cause=TRANSPORT_BREAKDOWN, confidence=0.87" },
+    { "id": "156e0298-abfc-47f5-8afe-d42690e253ec", "at": "2026-08-07T03:35:00+00:00", "agent": "SOURCING", "action": "CANDIDATES_MATCHED", "detail": "Matched and verified Kohinoor Precision as alternate supplier", "input_summary": "SKU M8-HEX-BOLT, category=Automotive Fasteners", "output_summary": "1 verified candidate returned" },
+    { "id": "fd62ef31-846d-4459-8c6d-54169b1dc5ce", "at": "2026-08-07T04:22:00+00:00", "agent": "GOVERNANCE", "action": "APPROVAL_DECIDED", "detail": "Plant manager approved expedited sourcing via web dashboard", "input_summary": "approval_id=a52a6e18-ccbc-4fba-9237-7c0a845a8c02", "output_summary": "decision=APPROVE" },
+    { "id": "670e62cf-decf-4414-90d7-38e6af9dc54a", "at": "2026-08-07T04:41:00+00:00", "agent": "NEGOTIATION", "action": "TERMS_AGREED", "detail": "3-round voice negotiation concluded within guardrails", "input_summary": "opening: ₹16.00/unit, 3-day lead", "output_summary": "final: ₹14.50/unit, 2-day lead" },
+    { "id": "2a4c58b4-eae4-4af4-9d30-c12e68722e03", "at": "2026-08-07T04:45:00+00:00", "agent": "SETTLEMENT", "action": "BATCH_QUEUED", "detail": "Invoice queued into August settlement batch", "input_summary": "negotiation_id=192864e3-7595-45fe-8a2b-16c4ce44aa27", "output_summary": "batch_id=a7a105e1-2dc7-4ee8-b3b0-0eed03317722" }
+  ],
+  "6947d32f-c8f4-4cba-ac9b-398529becdb8": [
+    { "id": "670e62cf-decf-4414-90d7-38e6af9dc54b", "at": "2026-08-08T22:05:00+00:00", "agent": "SENTINEL", "action": "SIGNAL_RAISED", "detail": "TTM forecast breach probability crossed 0.8 threshold for SKU CRS-2MM", "input_summary": "granite-timeseries-ttm-r2 inference output", "output_summary": "PRICE_SHOCK disruption opened" },
+    { "id": "670e62cf-decf-4414-90d7-38e6af9dc54c", "at": "2026-08-08T22:15:00+00:00", "agent": "DIAGNOSIS", "action": "ROOT_CAUSE_ASSIGNED", "detail": "Cross-referenced forecast with vendor invoice price trend", "input_summary": "Last 2 vendor invoices for Marudhar Steel Traders", "output_summary": "root_cause=FINANCIAL_DISTRESS, confidence=0.74" },
+    { "id": "670e62cf-decf-4414-90d7-38e6af9dc54d", "at": "2026-08-08T22:30:00+00:00", "agent": "GOVERNANCE", "action": "APPROVAL_REQUESTED", "detail": "Escalated early-lock purchase decision to procurement lead", "input_summary": "exposure=₹92,00,000, confidence=0.74", "output_summary": "approval_id=9fa01c6e-d636-4009-ab03-c2d49ba11bc3" }
+  ],
+  "228bdcbe-3b9e-42a4-a84f-2f42c48ec664": [
+    { "id": "670e62cf-decf-4414-90d7-38e6af9dc54e", "at": "2026-08-09T05:50:00+00:00", "agent": "SENTINEL", "action": "SIGNAL_RAISED", "detail": "Incoming QC scan flagged 34 of 280 units out of tolerance", "input_summary": "QC scan report #QC-55210", "output_summary": "QUALITY_REJECTION disruption opened" }
+  ]
+}
