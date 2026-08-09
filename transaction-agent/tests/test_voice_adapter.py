@@ -25,6 +25,7 @@ AUTH = {"Authorization": "Bearer voice-test-secret"}
 def _build(tmp_path: pathlib.Path):
     api_settings = ApiSettings(
         checkpoint_db=str(tmp_path / "checkpoints.sqlite"),
+        checkpoint_dsn=None,  # force SQLite even if DATABASE_URL_DIRECT is set in the environment
         audit_path=str(tmp_path / "audit.json"),
         recipient_directory_path=str(tmp_path / "recipients.sqlite"),
         users_path=str(tmp_path / "users.sqlite"),
