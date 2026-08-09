@@ -10,10 +10,15 @@ is simulated. Recipient resolution, durable checkpointing, and a real (if
 small) approver identity check were added on top of the original
 parse → review → approve → execute → log flow to make the graph's state
 trustworthy; an HTTP API (`api.py`) put it behind a service and checked it's
-in good shape to be imported into watsonx Orchestrate later; and a voice
+in good shape to be imported into watsonx Orchestrate later; a voice
 channel (`voice/`, built on [Bolna](https://www.bolna.ai)) puts a phone call
 in front of that same API, so a caller can approve a payment by talking to
-it. `cli.py` is unchanged and still works exactly as before.
+it; and every store — audit log, recipient directory, users, and the graph's
+own checkpoints — now has a real Neon Postgres backend alongside the local
+SQLite/JSON one, selected automatically by what's configured in the
+environment (see "Neon Postgres" below). `cli.py` and `graph.py`'s public
+behavior are unchanged throughout all of this — only which backend a store
+talks to changed, never what it does.
 
 ## Flow
 
@@ -51,12 +56,13 @@ it. `cli.py` is unchanged and still works exactly as before.
                                branches complete.
 ```
 
-Checkpoints (including any paused interrupt) are written to SQLite as the
-graph runs, so closing the CLI mid-approval and resuming later — even in a
-brand new process — picks up exactly where it left off. Every audit entry
-also carries `channel` ("cli" / "api" / "voice"), and, for voice-originated
-threads, `call_id` and `transcript_ref` — so the audit trail can tell a
-voice-originated approval apart from a CLI or API one.
+Checkpoints (including any paused interrupt) are written to SQLite or Neon
+Postgres as the graph runs, so closing the CLI mid-approval and resuming
+later — even in a brand new process — picks up exactly where it left off.
+Every audit entry also carries `channel` ("cli" / "api" / "voice"), and,
+for voice-originated threads, `call_id` and `transcript_ref` — so the
+audit trail can tell a voice-originated approval apart from a CLI or API
+one.
 
 ## State machine
 
@@ -81,10 +87,12 @@ transaction_agent/
   parsing_offline.py        regex parser used by --offline (zero credentials)
   llm.py                     ChatWatsonx (IBM Granite) setup + structured extraction
   execution.py               simulate_execution() — the swappable execution seam
-  recipient_directory.py     SQLite recipient store + fuzzy matching (difflib)
-  users.py                   SQLite user table, salted+hashed passphrases
-  audit.py                    persistent JSON audit log (dedup-by-entry_id, idempotent)
-  graph.py                     the compiled LangGraph graph — zero terminal I/O
+  recipient_directory.py     recipient store + fuzzy matching (difflib) — SQLite or Neon
+  users.py                   user table, salted+hashed passphrases — SQLite or Neon
+  audit.py                    persistent audit log (dedup-by-entry_id, idempotent) — JSON or Neon
+  db.py                        shared Postgres (Neon) connection helper for the three above
+  checkpointer.py               picks SqliteSaver or PostgresSaver the same way
+  graph.py                       the compiled LangGraph graph — zero terminal I/O
 cli.py                         terminal front end: .invoke(), interrupt handling,
                                 --resume, prompts
 api.py                         HTTP front end (FastAPI): same .invoke()/Command(resume=...)
@@ -147,6 +155,70 @@ watsonx):
 
 ```bash
 python -m transaction_agent.users create krish
+```
+
+## Neon Postgres
+
+Optional — everything above works with zero external dependencies via
+local SQLite/JSON files. Set these in `.env` (see `.env.example`) to move
+the audit log, recipient directory, users, and graph checkpoints into Neon
+instead, all in this database's own `transaction_agent` schema (created
+automatically), kept separate from any other service sharing the database
+(e.g. this project's own `backend/`, whose tables live in `public`):
+
+```
+DATABASE_URL=postgresql://user:pass@host-pooler.region.aws.neon.tech/dbname?sslmode=require&channel_binding=require
+DATABASE_URL_DIRECT=postgresql://user:pass@host.region.aws.neon.tech/dbname?sslmode=require&channel_binding=require
+```
+
+`DATABASE_URL` (Neon's pooled endpoint) is used for the audit log,
+recipient directory, and users table — many short-lived connections, which
+pooling is designed for. `DATABASE_URL_DIRECT` (no PgBouncer in front) is
+used for the LangGraph checkpointer specifically, which is held open for
+as long as a graph object is in use rather than reopened per call.
+
+**Why two endpoints, and why every one of our own tables is
+schema-qualified in its SQL (`transaction_agent.audit_entries`, not just
+`audit_entries`) instead of relying on a `SET search_path` once per
+connection:** PgBouncer transaction-pooling mode can transparently hand
+consecutive statements on what looks like one client connection to
+*different* backend Postgres sessions. Session-level state — including
+`SET search_path` — doesn't survive that handoff. This is a real bug that
+was hit and fixed during development (`transaction_agent/db.py`,
+`audit.py`, `recipient_directory.py`, `users.py`): an intermittent
+`UndefinedTable` error on the pooled endpoint that didn't reproduce in
+quick manual checks but did under a real CLI run, because it depends on
+pool timing/load, not just code correctness. The checkpointer is exempt
+from this because it uses the *direct* endpoint — one dedicated session
+per graph object — where `search_path` is safe to rely on, which matters
+because LangGraph's own internal SQL isn't schema-qualified and can't be
+changed from here.
+
+Every store module keeps accepting the exact same `path` parameter it
+always did — a local file path selects SQLite/JSON, a `postgres://` /
+`postgresql://` connection string selects Postgres — so nothing calling
+into them (`graph.py`, `cli.py`, `api.py`, `voice/adapter.py`) needed to
+change. `DEFAULT_AUDIT_LOG_PATH` / `DEFAULT_DIRECTORY_PATH` /
+`DEFAULT_USERS_PATH` pick `DATABASE_URL` automatically when it's set
+(computed once at import — which is why `.env` is loaded from
+`transaction_agent/__init__.py` itself, not from each front end, so it's
+guaranteed to happen before those defaults are computed regardless of
+import order). `cli.py`/`api.py` similarly default their checkpointer to
+Postgres via `transaction_agent/checkpointer.py` when `DATABASE_URL_DIRECT`
+is set; pass `--checkpoint-dsn` (CLI) or construct `Settings(checkpoint_dsn=None)`
+(API) to force SQLite regardless — this is exactly how the test suite
+stays fast and fully offline despite Neon being configured in this
+project's own `.env`: every test passes an explicit local path/DSN rather
+than relying on the default.
+
+`tests/test_neon_integration.py` is a small opt-in suite (skipped unless
+`DATABASE_URL`/`DATABASE_URL_DIRECT` are set) that exercises all four
+stores — including the checkpointer-across-a-simulated-restart case —
+against the real database, since the pooling bug above is exactly the
+kind of thing local-only testing can't catch.
+
+```bash
+pytest tests/test_neon_integration.py -v
 ```
 
 ## Running
@@ -380,7 +452,10 @@ adapter's NLU parsing and every mechanical piece of the call flow (select →
 confirm gate, PIN retry, one-at-a-time disambiguation, channel/call_id/
 transcript_ref audit tagging, and a "hangup" leaving the thread parked
 rather than approved or lost) — everything short of an actual phone call,
-which is what `VOICE_TEST_PLAN.md` is for.
+which is what `VOICE_TEST_PLAN.md` is for. All of the above run fully
+offline against local SQLite/JSON, regardless of whether Neon is
+configured in `.env` — `tests/test_neon_integration.py` is the separate,
+opt-in suite that hits the real database (see "Neon Postgres" above).
 
 ## Where the next phases plug in
 
@@ -396,9 +471,11 @@ which is what `VOICE_TEST_PLAN.md` is for.
 - **Real approver auth**: `users.py` is a local salted-hash user table —
   swap `verify_user_fn` in `build_graph()` for a call to real SSO/enterprise
   auth; `human_approval_node`'s retry-loop shape stays the same.
-- **Checkpointer**: this phase uses `SqliteSaver` (see `cli.py`). For a
-  multi-instance service deployment, swap in `PostgresSaver` — same
-  `checkpointer=` argument to `build_graph()`.
+- **Checkpointer / persistence**: done — `SqliteSaver`/`PostgresSaver` and
+  the audit/recipient/user stores both pick Neon automatically when
+  configured (see "Neon Postgres" above). What's still local-only no
+  matter what: `voice/state.py` (call-scoped, short-lived by nature) and
+  the `.transaction_agent_last_thread` convenience file.
 - **Different front end**: `api.py` is one example — reuse
   `transaction_agent.graph.build_graph()` directly from anything else the
   same way: `.invoke()`/`.stream()`, catch `__interrupt__`, resume with

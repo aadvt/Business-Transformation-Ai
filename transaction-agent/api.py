@@ -34,20 +34,19 @@ needed to confirm.
 from __future__ import annotations
 
 import os
-import sqlite3
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, status
-from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 from pydantic import BaseModel
 
 from transaction_agent import audit as audit_store
 from transaction_agent import recipient_directory
 from transaction_agent import users as users_store
+from transaction_agent.checkpointer import open_checkpointer
 from transaction_agent.graph import build_graph
 from transaction_agent.models import AuditEntry, Transaction
 
@@ -58,7 +57,8 @@ DEFAULT_DEV_API_KEY = "dev-local-key"
 
 @dataclass
 class Settings:
-    checkpoint_db: str = "checkpoints.sqlite"
+    checkpoint_db: str = "checkpoints.sqlite"  # SQLite fallback; Postgres used automatically if checkpoint_dsn is set
+    checkpoint_dsn: Optional[str] = field(default_factory=lambda: os.environ.get("DATABASE_URL_DIRECT"))
     audit_path: str = field(default_factory=lambda: audit_store.DEFAULT_AUDIT_LOG_PATH)
     recipient_directory_path: str = field(default_factory=lambda: recipient_directory.DEFAULT_DIRECTORY_PATH)
     users_path: str = field(default_factory=lambda: users_store.DEFAULT_USERS_PATH)
@@ -71,6 +71,7 @@ class Settings:
     def from_env(cls) -> "Settings":
         return cls(
             checkpoint_db=os.environ.get("CHECKPOINT_DB_PATH", "checkpoints.sqlite"),
+            checkpoint_dsn=os.environ.get("DATABASE_URL_DIRECT"),
             audit_path=os.environ.get("AUDIT_LOG_PATH", audit_store.DEFAULT_AUDIT_LOG_PATH),
             recipient_directory_path=os.environ.get(
                 "RECIPIENT_DIRECTORY_PATH", recipient_directory.DEFAULT_DIRECTORY_PATH
@@ -187,10 +188,8 @@ def create_app(settings: Optional[Settings] = None) -> FastAPI:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or missing API key")
 
     def get_graph():
-        conn = sqlite3.connect(settings.checkpoint_db, check_same_thread=False)
+        conn, saver = open_checkpointer(settings.checkpoint_db, postgres_dsn=settings.checkpoint_dsn)
         try:
-            saver = SqliteSaver(conn)
-            saver.setup()
             yield build_graph(
                 checkpointer=saver,
                 audit_path=settings.audit_path,
