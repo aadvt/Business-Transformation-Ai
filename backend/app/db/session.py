@@ -28,6 +28,14 @@ def _make_engine(url: str, *, pooled: bool) -> Engine:
         kwargs["pool_size"] = 5
         kwargs["max_overflow"] = 5
         kwargs["pool_recycle"] = 300
+        # The pooled endpoint is PgBouncer in transaction mode, which doesn't
+        # support server-side prepared statements persisting across pooled
+        # connections. psycopg3 auto-prepares repeated statements by
+        # default; against a transaction-mode pooler that surfaces as
+        # intermittent "prepared statement does not exist" errors under
+        # concurrent load. Only applies to the pooled engine — the direct
+        # engine (seed/create_all, not pooled) doesn't need it.
+        kwargs["connect_args"] = {"prepare_threshold": None}
     return create_engine(url, **kwargs)
 
 
