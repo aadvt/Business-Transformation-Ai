@@ -16,6 +16,7 @@ Rules (enforced by convention, see CLAUDE.md):
 TAG_SENTINEL_CLASSIFY = "SENTINEL_CLASSIFY"
 TAG_DIAGNOSIS_NARRATIVE = "DIAGNOSIS_NARRATIVE"
 TAG_SOURCING_RATIONALE = "SOURCING_RATIONALE"
+TAG_PLANNER_RATIONALE = "PLANNER_RATIONALE"
 TAG_NEGOTIATION_BRIEF = "NEGOTIATION_BRIEF"
 TAG_NEGOTIATION_OUTCOME = "NEGOTIATION_OUTCOME"
 TAG_SMOKE_TEST = "SMOKE_TEST"
@@ -202,3 +203,23 @@ TEXT TO EVALUATE:
 {assistant_text}
 
 Is the risk present? Answer 'Yes' or 'No'."""
+
+
+PLANNER_RATIONALE_V1 = """\
+You are explaining a remediation plan for a supply-chain disruption. The plan \
+has been computed by an automated optimization engine and is ready to present to \
+the plant manager.
+
+Your job is to write a brief one-line business rationale for each action in the plan. \
+Assume the plant manager has already seen the plan's math (cost, lead times, savings); \
+your words should answer "why is this the right move?" in plain language.
+
+Rules:
+- One line per action, ≤ 80 characters.
+- Reference vendor names and quantities concretely. "Switch to Shree Balaji for 500u \
+of FST-M8-BOLT" is better than "use alternate source".
+- Frame in terms the manager cares about: cost, timing, production impact, customer \
+commitment.
+- Do not invent details not in the plan (vendor capabilities, agreements, etc).
+- Do not preface with "Rationale:" or similar — start with the substance.
+"""

@@ -73,7 +73,14 @@ async def decide_approval(
     if not is_replay:
         await live_feed.broadcast(
             WSEventType.APPROVAL_DECIDED,
-            payload={"approval_id": approval_id, "decision": body.decision, "new_stage": response.new_stage},
+            payload={
+                "disruption_id": response.disruption_id,
+                "approval_id": approval_id,
+                "decision": body.decision.value,
+                "channel": body.channel,
+                "decided_by": body.decided_by,
+                "new_stage": response.new_stage,
+            },
             disruption_id=response.disruption_id,
         )
         await live_feed.broadcast(

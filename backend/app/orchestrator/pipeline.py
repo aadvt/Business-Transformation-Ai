@@ -17,11 +17,14 @@ import uuid
 from app.agents.base import AgentContext, AgentResult
 from app.agents.diagnosis import DiagnosisAgent
 from app.agents.sourcing import SourcingAgent
-from app.db.models import Approval as ApprovalRow, DisruptionEvent
+from app.db.models import Approval as ApprovalRow, DisruptionEvent, VendorCandidate
 from app.db.session import SessionLocal
 from app.orchestrator.engine import IllegalTransitionError, transition
-from app.schemas.enums import AgentName, AgentStatus, WSEventType
+from app.schemas.enums import AgentName, AgentStatus, GraphNodeKind, GraphNodeState, WSEventType
 from app.schemas.money import utc_now
+from app.services.audit import append_audit
+from app.services.impact import get_or_build_impact_graph
+from app.services.planner import build_plan
 from app.ws_manager import live_feed
 
 logger = logging.getLogger("sanjeevani.orchestrator")
@@ -74,6 +77,17 @@ async def run_pipeline_to_awaiting_approval(org_id: str, disruption_id: str) -> 
         transition(session, org_id, disruption, "DIAGNOSED", actor_type="AGENT", actor="DIAGNOSIS")
         await _broadcast_stage(disruption)
 
+        # Demo phase D1: build the blast-radius graph now that exposure/
+        # diagnosis are on the row, and broadcast it — this is what makes the
+        # frontend's canvas animate, so it has to fire during the run, not
+        # only be available on request. Graph building is DB-only and fast,
+        # but it's still sync SQLAlchemy, so it goes through asyncio.to_thread
+        # same as every agent call (see this file's own docstring on why).
+        impact_graph = await asyncio.to_thread(_compute_impact_and_audit, session, org_id, disruption)
+        await live_feed.broadcast(
+            WSEventType.IMPACT_COMPUTED, payload=impact_graph.model_dump(), disruption_id=disruption_id
+        )
+
         transition(session, org_id, disruption, "SOURCING", actor_type="AGENT", actor="ORCHESTRATOR")
         await _broadcast_stage(disruption)
 
@@ -90,13 +104,23 @@ async def run_pipeline_to_awaiting_approval(org_id: str, disruption_id: str) -> 
             await _broadcast_stage(disruption)
             return sourcing_result
 
+        # D3: build remediation plan before approval (may not always succeed)
+        candidates = session.query(VendorCandidate).filter_by(disruption_id=disruption_id).order_by(VendorCandidate.rank).all()
+        plan_row = None
+        if candidates:
+            plan_row = await asyncio.to_thread(_build_and_persist_plan, session, disruption, candidates)
+            if plan_row:
+                await live_feed.broadcast(
+                    WSEventType.PLAN_PROPOSED, payload={"plan_id": plan_row.id, "disruption_id": disruption_id}, disruption_id=disruption_id
+                )
+
         approval_id = str(uuid.uuid4())
         now = utc_now()
         session.add(
             ApprovalRow(
                 id=approval_id, disruption_id=disruption_id, status="PENDING", requested_at=now,
                 decided_at=None, decided_by=None, channel=None, note=None,
-                idempotency_key=None, presented_options=[],
+                idempotency_key=None, presented_options=[plan_row.id] if plan_row else [],
             )
         )
         session.flush()
@@ -108,6 +132,62 @@ async def run_pipeline_to_awaiting_approval(org_id: str, disruption_id: str) -> 
         )
 
         return sourcing_result
+
+
+def _compute_impact_and_audit(session, org_id: str, disruption: DisruptionEvent):
+    """Sync (SQLAlchemy) — call only via asyncio.to_thread, see caller.
+
+    One append_audit entry per impact computation, per CLAUDE.md's rule that
+    append_audit is the only write path to audit_log — never construct
+    AuditLogEntry directly.
+    """
+    graph = get_or_build_impact_graph(session, disruption)
+    impacted_node_count = sum(1 for n in graph.nodes if n.state == GraphNodeState.IMPACTED)
+    at_risk_order_count = sum(1 for n in graph.nodes if n.kind == GraphNodeKind.ORDER)
+
+    append_audit(
+        session, org_id=org_id, disruption_id=disruption.id, actor_type="AGENT", actor="ORCHESTRATOR",
+        action="IMPACT_COMPUTED",
+        detail={
+            "impacted_node_count": impacted_node_count,
+            "at_risk_order_count": at_risk_order_count,
+            "exposure_calc_id": graph.summary.exposure_calc_id,
+        },
+    )
+    session.commit()
+    return graph
+
+
+def _build_and_persist_plan(session, disruption: DisruptionEvent, candidates: list[VendorCandidate]):
+    """Sync (SQLAlchemy) — call only via asyncio.to_thread, see caller.
+
+    Builds and persists a remediation plan. On any error, logs and returns None
+    rather than failing the pipeline — planning is advisory, not blocking.
+    """
+    try:
+        plan_row = build_plan(session, disruption, candidates)
+        if plan_row:
+            session.add(plan_row)
+            session.flush()
+            append_audit(
+                session, org_id=disruption.org_id, disruption_id=disruption.id,
+                actor_type="AGENT", actor="PLANNER",
+                action="PLAN_CREATED",
+                detail={
+                    "plan_id": plan_row.id,
+                    "solver": plan_row.solver,
+                    "solve_ms": plan_row.solve_ms,
+                    "requires_escalation": plan_row.requires_escalation,
+                    "cost_to_resolve_paise": plan_row.cost_to_resolve_paise,
+                    "net_saving_paise": plan_row.net_saving_paise,
+                },
+            )
+            session.commit()
+            return plan_row
+    except Exception as e:
+        logger.error(f"plan_creation_failed: {e}", extra={"disruption_id": disruption.id}, exc_info=True)
+        session.rollback()
+    return None
 
 
 def _fail(session, org_id: str, disruption: DisruptionEvent, error: str | None) -> None:

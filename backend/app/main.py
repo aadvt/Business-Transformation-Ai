@@ -18,11 +18,14 @@ from app.routers import (
     approvals,
     audit,
     dashboard,
+    demo,
     disruptions,
     forecast,
     live,
     metrics,
     negotiations,
+    phone,
+    public,
     settlements,
     simulate,
     vendors,
@@ -87,6 +90,7 @@ async def correlation_id_middleware(request: Request, call_next):
 app.include_router(agents.router)
 app.include_router(disruptions.router)
 app.include_router(vendors.router)
+app.include_router(public.router)  # D2: public vendor directory, no API key required
 app.include_router(dashboard.router)
 app.include_router(approvals.router)
 app.include_router(settlements.router)
@@ -94,7 +98,9 @@ app.include_router(audit.router)
 app.include_router(metrics.router)
 app.include_router(forecast.router)
 app.include_router(negotiations.router)
+app.include_router(phone.router)  # D4: WhatsApp mock message thread
 app.include_router(simulate.router)
+app.include_router(demo.router)
 app.include_router(live.router)
 
 

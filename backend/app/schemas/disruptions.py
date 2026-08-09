@@ -56,6 +56,7 @@ class SourcingCandidate(ApiModel):
     verification: CandidateVerification
     quoted_lead_time_days: int
     quoted_unit_price_paise: int
+    score_components: dict | None = None  # {reliability, lead_time, price, geography, relationship}
 
 
 class Approval(ApiModel):

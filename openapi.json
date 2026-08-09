@@ -190,6 +190,123 @@
         }
       }
     },
+    "/api/v1/disruptions/{disruption_id}/impact": {
+      "get": {
+        "tags": [
+          "disruptions"
+        ],
+        "summary": "Get Disruption Impact",
+        "operationId": "get_disruption_impact_api_v1_disruptions__disruption_id__impact_get",
+        "parameters": [
+          {
+            "name": "disruption_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Disruption Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImpactGraph"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/disruptions/{disruption_id}/plan": {
+      "get": {
+        "tags": [
+          "disruptions"
+        ],
+        "summary": "Get Disruption Plan",
+        "description": "Fetch the latest remediation plan for a disruption.",
+        "operationId": "get_disruption_plan_api_v1_disruptions__disruption_id__plan_get",
+        "parameters": [
+          {
+            "name": "disruption_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Disruption Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RemediationPlan"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/vendors": {
       "get": {
         "tags": [
@@ -415,6 +532,163 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/VendorContext"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/vendors": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Get Public Vendors",
+        "description": "List vendors from the public directory.",
+        "operationId": "get_public_vendors_api_v1_public_vendors_get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "name": "verified",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Verified"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicVendorList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/vendors/{vendor_id}": {
+      "get": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Get Public Vendor",
+        "description": "Get a specific vendor with full verification details.",
+        "operationId": "get_public_vendor_api_v1_public_vendors__vendor_id__get",
+        "parameters": [
+          {
+            "name": "vendor_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Vendor Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicVendor"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/public/vendors/register": {
+      "post": {
+        "tags": [
+          "public"
+        ],
+        "summary": "Register Vendor",
+        "description": "Register a new vendor. Validates GSTIN offline, checks for duplicates.",
+        "operationId": "register_vendor_api_v1_public_vendors_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VendorRegistration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResponse"
                 }
               }
             }
@@ -983,6 +1257,63 @@
         }
       }
     },
+    "/api/v1/phone/messages": {
+      "get": {
+        "tags": [
+          "phone"
+        ],
+        "summary": "Get Phone Messages",
+        "description": "Message thread for the WhatsApp mock UI, derived from DB state.\n\nIncludes: disruption alerts, approval cards, outcomes, settlement updates.\nNo actual WhatsApp/Twilio integration — this is the honest deliverable.",
+        "operationId": "get_phone_messages_api_v1_phone_messages_get",
+        "parameters": [
+          {
+            "name": "disruption_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "title": "Disruption Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/disruptions/simulate": {
       "post": {
         "tags": [
@@ -1025,6 +1356,153 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SimulateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/simulate/targets": {
+      "get": {
+        "tags": [
+          "simulate"
+        ],
+        "summary": "Simulate Targets",
+        "operationId": "simulate_targets_api_v1_simulate_targets_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateTargetsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/reset": {
+      "post": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Demo Reset",
+        "operationId": "demo_reset_api_v1_demo_reset_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoResetResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/state": {
+      "get": {
+        "tags": [
+          "demo"
+        ],
+        "summary": "Demo State",
+        "operationId": "demo_state_api_v1_demo_state_get",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoState"
                 }
               }
             }
@@ -1471,6 +1949,96 @@
         ],
         "title": "DashboardSummary"
       },
+      "DemoResetResponse": {
+        "properties": {
+          "cleared": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Cleared"
+          },
+          "reseeded_disruptions": {
+            "type": "integer",
+            "title": "Reseeded Disruptions"
+          },
+          "elapsed_ms": {
+            "type": "number",
+            "title": "Elapsed Ms"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cleared",
+          "reseeded_disruptions",
+          "elapsed_ms"
+        ],
+        "title": "DemoResetResponse"
+      },
+      "DemoStageCount": {
+        "properties": {
+          "stage": {
+            "$ref": "#/components/schemas/DisruptionStage"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "stage",
+          "count"
+        ],
+        "title": "DemoStageCount"
+      },
+      "DemoState": {
+        "properties": {
+          "disruption_count_by_stage": {
+            "items": {
+              "$ref": "#/components/schemas/DemoStageCount"
+            },
+            "type": "array",
+            "title": "Disruption Count By Stage"
+          },
+          "integrations": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/IntegrationStatus"
+            },
+            "type": "object",
+            "title": "Integrations"
+          },
+          "ttm_loaded": {
+            "type": "boolean",
+            "title": "Ttm Loaded"
+          },
+          "ws_client_count": {
+            "type": "integer",
+            "title": "Ws Client Count"
+          },
+          "db_roundtrip_ms": {
+            "type": "number",
+            "title": "Db Roundtrip Ms"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "disruption_count_by_stage",
+          "integrations",
+          "ttm_loaded",
+          "ws_client_count",
+          "db_roundtrip_ms",
+          "updated_at"
+        ],
+        "title": "DemoState"
+      },
       "DetectorSource": {
         "type": "string",
         "enum": [
@@ -1767,6 +2335,24 @@
         ],
         "title": "ExposureBreakdownItem"
       },
+      "ExposureSnapshot": {
+        "properties": {
+          "exposure_paise": {
+            "type": "integer",
+            "title": "Exposure Paise"
+          },
+          "exposure_display": {
+            "type": "string",
+            "title": "Exposure Display"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exposure_paise",
+          "exposure_display"
+        ],
+        "title": "ExposureSnapshot"
+      },
       "Forecast": {
         "properties": {
           "sku": {
@@ -1845,6 +2431,27 @@
         ],
         "title": "ForecastPoint"
       },
+      "GraphNodeKind": {
+        "type": "string",
+        "enum": [
+          "VENDOR",
+          "ITEM",
+          "LINE",
+          "ORDER",
+          "PLANT"
+        ],
+        "title": "GraphNodeKind"
+      },
+      "GraphNodeState": {
+        "type": "string",
+        "enum": [
+          "HEALTHY",
+          "AT_RISK",
+          "IMPACTED",
+          "SUBSTITUTED"
+        ],
+        "title": "GraphNodeState"
+      },
       "GuardianCheck": {
         "properties": {
           "status": {
@@ -1900,6 +2507,162 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "ImpactEdge": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "target": {
+            "type": "string",
+            "title": "Target"
+          },
+          "state": {
+            "$ref": "#/components/schemas/GraphNodeState"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source",
+          "target",
+          "state"
+        ],
+        "title": "ImpactEdge"
+      },
+      "ImpactGraph": {
+        "properties": {
+          "disruption_id": {
+            "type": "string",
+            "title": "Disruption Id"
+          },
+          "nodes": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactNode"
+            },
+            "type": "array",
+            "title": "Nodes"
+          },
+          "edges": {
+            "items": {
+              "$ref": "#/components/schemas/ImpactEdge"
+            },
+            "type": "array",
+            "title": "Edges"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ImpactSummary"
+          },
+          "computed_at": {
+            "type": "string",
+            "title": "Computed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "disruption_id",
+          "nodes",
+          "edges",
+          "summary",
+          "computed_at"
+        ],
+        "title": "ImpactGraph"
+      },
+      "ImpactNode": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/GraphNodeKind"
+          },
+          "layer": {
+            "type": "integer",
+            "title": "Layer"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "state": {
+            "$ref": "#/components/schemas/GraphNodeState"
+          },
+          "badges": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Badges"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "layer",
+          "label",
+          "state"
+        ],
+        "title": "ImpactNode"
+      },
+      "ImpactSummary": {
+        "properties": {
+          "exposure_total_paise": {
+            "type": "integer",
+            "title": "Exposure Total Paise"
+          },
+          "exposure_total_display": {
+            "type": "string",
+            "title": "Exposure Total Display"
+          },
+          "exposure_confidence": {
+            "type": "number",
+            "title": "Exposure Confidence"
+          },
+          "exposure_calc_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exposure Calc Id"
+          },
+          "severity_tier": {
+            "type": "integer",
+            "title": "Severity Tier"
+          },
+          "tier_thresholds_paise": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Tier Thresholds Paise"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "exposure_total_paise",
+          "exposure_total_display",
+          "exposure_confidence",
+          "exposure_calc_id",
+          "severity_tier",
+          "tier_thresholds_paise"
+        ],
+        "title": "ImpactSummary",
+        "description": "Reuses the disruption's own latest exposure_calcs row — never a second,\nindependently-computed number. See app/services/impact.py's docstring."
       },
       "IntegrationStatus": {
         "type": "string",
@@ -2224,6 +2987,211 @@
         ],
         "title": "NegotiationTerm"
       },
+      "PlanChange": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
+          },
+          "vendor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Name"
+          },
+          "item_sku": {
+            "type": "string",
+            "title": "Item Sku"
+          },
+          "qty": {
+            "type": "integer",
+            "title": "Qty"
+          },
+          "unit_price_paise": {
+            "type": "integer",
+            "title": "Unit Price Paise"
+          },
+          "unit_price_display": {
+            "type": "string",
+            "title": "Unit Price Display"
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "title": "Lead Time Days"
+          },
+          "eta_date": {
+            "type": "string",
+            "title": "Eta Date"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "item_sku",
+          "qty",
+          "unit_price_paise",
+          "unit_price_display",
+          "lead_time_days",
+          "eta_date"
+        ],
+        "title": "PlanChange"
+      },
+      "PublicVendor": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "title": "Lead Time Days"
+          },
+          "capacity_hint": {
+            "type": "string",
+            "title": "Capacity Hint"
+          },
+          "price_band": {
+            "type": "string",
+            "title": "Price Band"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "reliability": {
+            "type": "object",
+            "title": "Reliability"
+          },
+          "verification": {
+            "$ref": "#/components/schemas/VendorVerification"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "category",
+          "city",
+          "state",
+          "lead_time_days",
+          "capacity_hint",
+          "price_band",
+          "languages",
+          "verification"
+        ],
+        "title": "PublicVendor"
+      },
+      "PublicVendorList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PublicVendor"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total"
+        ],
+        "title": "PublicVendorList"
+      },
+      "RegistrationResponse": {
+        "properties": {
+          "vendor_id": {
+            "type": "string",
+            "title": "Vendor Id"
+          },
+          "created": {
+            "type": "boolean",
+            "title": "Created"
+          },
+          "reason_if_duplicate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason If Duplicate"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VendorVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "vendor_id",
+          "created"
+        ],
+        "title": "RegistrationResponse"
+      },
       "Reliability": {
         "properties": {
           "score_0_100": {
@@ -2253,6 +3221,91 @@
         ],
         "title": "Reliability"
       },
+      "RemediationPlan": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "disruption_id": {
+            "type": "string",
+            "title": "Disruption Id"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/PlanChange"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "before": {
+            "$ref": "#/components/schemas/ExposureSnapshot"
+          },
+          "after": {
+            "$ref": "#/components/schemas/ExposureSnapshot"
+          },
+          "cost_to_resolve_paise": {
+            "type": "integer",
+            "title": "Cost To Resolve Paise"
+          },
+          "cost_to_resolve_display": {
+            "type": "string",
+            "title": "Cost To Resolve Display"
+          },
+          "net_saving_paise": {
+            "type": "integer",
+            "title": "Net Saving Paise"
+          },
+          "net_saving_display": {
+            "type": "string",
+            "title": "Net Saving Display"
+          },
+          "requires_escalation": {
+            "type": "boolean",
+            "title": "Requires Escalation"
+          },
+          "escalation_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalation Reason"
+          },
+          "solve_ms": {
+            "type": "number",
+            "title": "Solve Ms"
+          },
+          "solver": {
+            "type": "string",
+            "title": "Solver"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "disruption_id",
+          "created_at",
+          "changes",
+          "before",
+          "after",
+          "cost_to_resolve_paise",
+          "cost_to_resolve_display",
+          "net_saving_paise",
+          "net_saving_display",
+          "requires_escalation",
+          "solve_ms",
+          "solver"
+        ],
+        "title": "RemediationPlan"
+      },
       "RootCause": {
         "type": "string",
         "enum": [
@@ -2265,6 +3318,16 @@
           "UNKNOWN"
         ],
         "title": "RootCause"
+      },
+      "ScenarioKind": {
+        "type": "string",
+        "enum": [
+          "BACKED_OUT",
+          "PRICE_HIKE",
+          "DELAYED",
+          "SHUT_DOWN"
+        ],
+        "title": "ScenarioKind"
       },
       "SettlementBatch": {
         "properties": {
@@ -2472,14 +3535,50 @@
       "SimulateRequest": {
         "properties": {
           "scenario": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Scenario"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScenarioKind"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effective_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective Date"
           }
         },
         "type": "object",
-        "required": [
-          "scenario"
-        ],
         "title": "SimulateRequest"
       },
       "SimulateResponse": {
@@ -2510,6 +3609,68 @@
         ],
         "title": "SimulateResponse"
       },
+      "SimulateTarget": {
+        "properties": {
+          "vendor_id": {
+            "type": "string",
+            "title": "Vendor Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "open_po_count": {
+            "type": "integer",
+            "title": "Open Po Count"
+          },
+          "downstream_line_count": {
+            "type": "integer",
+            "title": "Downstream Line Count"
+          },
+          "est_exposure_paise": {
+            "type": "integer",
+            "title": "Est Exposure Paise"
+          },
+          "recommended_kinds": {
+            "items": {
+              "$ref": "#/components/schemas/ScenarioKind"
+            },
+            "type": "array",
+            "title": "Recommended Kinds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "vendor_id",
+          "name",
+          "category",
+          "open_po_count",
+          "downstream_line_count",
+          "est_exposure_paise",
+          "recommended_kinds"
+        ],
+        "title": "SimulateTarget"
+      },
+      "SimulateTargetsResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SimulateTarget"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SimulateTargetsResponse"
+      },
       "SourcingCandidate": {
         "properties": {
           "vendor_id": {
@@ -2534,6 +3695,17 @@
           "quoted_unit_price_paise": {
             "type": "integer",
             "title": "Quoted Unit Price Paise"
+          },
+          "score_components": {
+            "anyOf": [
+              {
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score Components"
           }
         },
         "additionalProperties": false,
@@ -2999,6 +4171,163 @@
         ],
         "title": "VendorRef",
         "description": "Minimal vendor reference embedded in other objects."
+      },
+      "VendorRegistration": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "gstin": {
+            "type": "string",
+            "title": "Gstin"
+          },
+          "udyam_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Udyam Number"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "pincode": {
+            "type": "string",
+            "title": "Pincode"
+          },
+          "phone": {
+            "type": "string",
+            "title": "Phone"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "capacity_hint": {
+            "type": "string",
+            "title": "Capacity Hint"
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "title": "Lead Time Days"
+          },
+          "price_band": {
+            "type": "string",
+            "title": "Price Band"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "gstin",
+          "category",
+          "city",
+          "state",
+          "pincode",
+          "phone",
+          "email",
+          "languages",
+          "capacity_hint",
+          "lead_time_days",
+          "price_band"
+        ],
+        "title": "VendorRegistration"
+      },
+      "VendorVerification": {
+        "properties": {
+          "overall_status": {
+            "type": "string",
+            "title": "Overall Status"
+          },
+          "gstin_status": {
+            "type": "string",
+            "title": "Gstin Status"
+          },
+          "gstin_masked": {
+            "type": "string",
+            "title": "Gstin Masked"
+          },
+          "udyam_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Udyam Status"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationDetail"
+            },
+            "type": "array",
+            "title": "Details"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "checked_at": {
+            "type": "string",
+            "title": "Checked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "overall_status",
+          "gstin_status",
+          "gstin_masked",
+          "details",
+          "source",
+          "checked_at"
+        ],
+        "title": "VendorVerification"
+      },
+      "VerificationDetail": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "status",
+          "description"
+        ],
+        "title": "VerificationDetail"
       },
       "VerificationStatus": {
         "type": "string",

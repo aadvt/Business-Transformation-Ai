@@ -80,6 +80,12 @@ class Settings(BaseSettings):
     max_lead_time_days: int = 10
     requires_human_above_paise: int = 50_000_000_00  # ₹5,00,00,000 — mandatory human review above this exposure
 
+    # --- Impact graph severity tiers (Demo phase D1) ---
+    # Tier 1 >= 10L, Tier 2 >= 3L, Tier 3 below — exposed in the response so
+    # the UI can show why a disruption landed in a given tier.
+    impact_tier1_exposure_paise: int = 10_00_000 * 100  # ₹10L
+    impact_tier2_exposure_paise: int = 3_00_000 * 100  # ₹3L
+
     verification_provider: str = ""  # empty -> offline GSTIN/Udyam checksum only
     verification_provider_url: str = ""
     verification_provider_api_key: str = ""

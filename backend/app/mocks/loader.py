@@ -14,6 +14,7 @@ from app.schemas.agents import AgentState
 from app.schemas.audit import AuditEntry
 from app.schemas.disruptions import Disruption
 from app.schemas.forecast import Forecast
+from app.schemas.impact import ImpactGraph
 from app.schemas.metrics import MetricsDemo
 from app.schemas.settlement import SettlementBatch
 from app.schemas.vendors import Vendor
@@ -50,6 +51,9 @@ class Store:
             for disruption_id, entries in _load_json("audit.json").items()
         }
         self.metrics_demo: MetricsDemo = MetricsDemo.model_validate(_load_json("metrics_demo.json"))
+        self.impact_graphs: dict[str, ImpactGraph] = {
+            disruption_id: ImpactGraph.model_validate(g) for disruption_id, g in _load_json("impact.json").items()
+        }
         # idempotency caches: idempotency_key -> stored response payload (dict)
         self.approval_idempotency: dict[str, dict] = {}
         self.settlement_execute_idempotency: dict[str, dict] = {}

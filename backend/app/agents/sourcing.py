@@ -27,6 +27,7 @@ from app.db.models import (
     Vendor as VendorRow,
     VendorCandidate,
 )
+from app.repositories import vendors as vendor_repo
 from app.llm import prompts
 from app.llm.client import LLMSchemaError, get_llm
 from app.schemas.enums import AgentName, AgentStatus
@@ -142,13 +143,14 @@ class SourcingAgent(Agent):
 
         org = session.get(Organisation, ctx.org_id) or session.get(Organisation, DEFAULT_ORG_ID)
 
-        pool = session.execute(
-            select(VendorRow).where(
-                VendorRow.org_id == ctx.org_id,
-                VendorRow.category == failed_vendor.category,
-                VendorRow.id != failed_vendor.id,
-            )
-        ).scalars().all()
+        # Use shared vendor search from public directory, with verification required
+        pool = vendor_repo.search_vendors(
+            session,
+            category=failed_vendor.category,
+            verified_only=True,
+            exclude_vendor_id=failed_vendor.id,
+            limit=100,
+        )
 
         if not pool:
             return AgentResult(

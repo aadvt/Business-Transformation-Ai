@@ -8,6 +8,10 @@ from app.mocks.loader import store
 from app.repositories import disruptions as repo
 from app.schemas.disruptions import Disruption, DisruptionList, DisruptionSummary
 from app.schemas.enums import DisruptionStage
+from app.schemas.impact import ImpactGraph
+from app.schemas.planner import RemediationPlan
+from app.services.impact import get_or_build_impact_graph
+from app.db.models import RemediationPlanRow
 
 router = APIRouter(prefix="/api/v1/disruptions", tags=["disruptions"], dependencies=[Depends(require_api_key)])
 
@@ -51,3 +55,44 @@ def get_disruption(disruption_id: str, session: Session = Depends(get_session)) 
     if d is None:
         raise HTTPException(status_code=404, detail="Disruption not found")
     return d
+
+
+@router.get("/{disruption_id}/impact", response_model=ImpactGraph)
+def get_disruption_impact(disruption_id: str, session: Session = Depends(get_session)) -> ImpactGraph:
+    if settings.use_mocks:
+        graph = store.impact_graphs.get(disruption_id)
+        if graph is None:
+            raise HTTPException(status_code=404, detail="Disruption not found")
+        return graph
+
+    disruption = repo.get_disruption_row(session, disruption_id)
+    if disruption is None:
+        raise HTTPException(status_code=404, detail="Disruption not found")
+    return get_or_build_impact_graph(session, disruption)
+
+
+@router.get("/{disruption_id}/plan", response_model=RemediationPlan)
+def get_disruption_plan(disruption_id: str, session: Session = Depends(get_session)) -> RemediationPlan:
+    """Fetch the latest remediation plan for a disruption."""
+    from app.schemas.money import format_inr, to_iso
+
+    plan_row = session.query(RemediationPlanRow).filter_by(disruption_id=disruption_id).order_by(RemediationPlanRow.created_at.desc()).first()
+    if plan_row is None:
+        raise HTTPException(status_code=404, detail="No plan found for this disruption")
+
+    return RemediationPlan(
+        id=plan_row.id,
+        disruption_id=plan_row.disruption_id,
+        created_at=to_iso(plan_row.created_at),
+        changes=plan_row.changes,
+        before={"exposure_paise": plan_row.before_exposure_paise, "exposure_display": format_inr(plan_row.before_exposure_paise)},
+        after={"exposure_paise": plan_row.after_exposure_paise, "exposure_display": format_inr(plan_row.after_exposure_paise)},
+        cost_to_resolve_paise=plan_row.cost_to_resolve_paise,
+        cost_to_resolve_display=format_inr(plan_row.cost_to_resolve_paise),
+        net_saving_paise=plan_row.net_saving_paise,
+        net_saving_display=format_inr(plan_row.net_saving_paise),
+        requires_escalation=plan_row.requires_escalation,
+        escalation_reason=plan_row.escalation_reason,
+        solve_ms=plan_row.solve_ms,
+        solver=plan_row.solver,
+    )

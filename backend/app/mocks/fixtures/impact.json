@@ -1,0 +1,76 @@
+{
+  "981f074f-9332-4b66-a24d-ffcaff0144cf": {
+    "disruption_id": "981f074f-9332-4b66-a24d-ffcaff0144cf",
+    "nodes": [
+      {
+        "id": "vendor:4c34118b-bbe1-4016-885d-e6bc7917b3b0",
+        "kind": "VENDOR",
+        "layer": 0,
+        "label": "Shree Balaji Auto Components",
+        "state": "IMPACTED",
+        "badges": ["2 open POs", "on-time 91%"]
+      },
+      {
+        "id": "item:M8-HEX-BOLT",
+        "kind": "ITEM",
+        "layer": 1,
+        "label": "M8 hex bolt (M8-HEX-BOLT)",
+        "state": "IMPACTED",
+        "badges": ["1,200 units short"]
+      },
+      {
+        "id": "line:aggregate",
+        "kind": "LINE",
+        "layer": 2,
+        "label": "Fasteners production line",
+        "state": "IMPACTED",
+        "badges": ["1 SKUs affected"]
+      },
+      {
+        "id": "plant:b2f6c8a0-0000-4000-8000-000000000001",
+        "kind": "PLANT",
+        "layer": 2,
+        "label": "Shakti Auto Components Pvt Ltd",
+        "state": "AT_RISK",
+        "badges": []
+      },
+      {
+        "id": "order:3dd81f7b-8b67-46d7-9447-1ea317c77fd7",
+        "kind": "ORDER",
+        "layer": 3,
+        "label": "SO-2026-0842",
+        "state": "IMPACTED",
+        "badges": ["₹20.0L at risk", "SLA penalty"]
+      }
+    ],
+    "edges": [
+      {
+        "id": "edge:vendor:4c34118b-bbe1-4016-885d-e6bc7917b3b0->item:M8-HEX-BOLT",
+        "source": "vendor:4c34118b-bbe1-4016-885d-e6bc7917b3b0",
+        "target": "item:M8-HEX-BOLT",
+        "state": "IMPACTED"
+      },
+      {
+        "id": "edge:item:M8-HEX-BOLT->line:aggregate",
+        "source": "item:M8-HEX-BOLT",
+        "target": "line:aggregate",
+        "state": "IMPACTED"
+      },
+      {
+        "id": "edge:item:M8-HEX-BOLT->order:3dd81f7b-8b67-46d7-9447-1ea317c77fd7",
+        "source": "item:M8-HEX-BOLT",
+        "target": "order:3dd81f7b-8b67-46d7-9447-1ea317c77fd7",
+        "state": "IMPACTED"
+      }
+    ],
+    "summary": {
+      "exposure_total_paise": 1850000000,
+      "exposure_total_display": "₹1,85,00,000",
+      "exposure_confidence": 0.87,
+      "exposure_calc_id": "mock-exposure-d1",
+      "severity_tier": 1,
+      "tier_thresholds_paise": { "tier_1_paise": 100000000, "tier_2_paise": 30000000 }
+    },
+    "computed_at": "2026-08-07T03:15:00+00:00"
+  }
+}

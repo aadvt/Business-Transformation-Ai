@@ -12,8 +12,8 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.db.models import CommEvent, PurchaseOrder, SettlementItem, Vendor as VendorRow
-from app.schemas.enums import MemorySource
+from app.db.models import CommEvent, PurchaseOrder, SettlementItem, Verification, Vendor as VendorRow
+from app.schemas.enums import MemorySource, VerificationStatus
 from app.schemas.money import format_inr, to_iso
 from app.schemas.vendors import (
     Guardrails,
@@ -27,6 +27,7 @@ from app.schemas.vendors import (
     VendorList,
     VendorRef,
 )
+from app.services.verification import verify_vendor
 
 
 def _vendor_dues_paise(session: Session, vendor_id: str) -> int:
@@ -61,6 +62,34 @@ def _to_vendor_schema(session: Session, row: VendorRow) -> Vendor:
         dues_paise=dues,
         dues_display=format_inr(dues),
     )
+
+
+def search_vendors(
+    session: Session,
+    category: str | None = None,
+    verified_only: bool = False,
+    limit: int = 50,
+    exclude_vendor_id: str | None = None,
+) -> list[VendorRow]:
+    """Shared vendor search — used by sourcing (verified_only=True, exclude self)
+    and public directory (verified_only=False, no exclusion). Returns ORM rows,
+    caller decides schema/output format."""
+    query = select(VendorRow)
+    if category:
+        query = query.where(VendorRow.category == category)
+    if exclude_vendor_id:
+        query = query.where(VendorRow.id != exclude_vendor_id)
+    if verified_only:
+        # Only include vendors with a VERIFIED overall_status in recent verification
+        verified_ids = session.execute(
+            select(Verification.vendor_id).where(
+                Verification.overall_status == VerificationStatus.VERIFIED.value
+            )
+        ).scalars().all()
+        if not verified_ids:
+            return []
+        query = query.where(VendorRow.id.in_(verified_ids))
+    return session.execute(query.order_by(VendorRow.name).limit(limit)).scalars().all()
 
 
 def list_vendors(session: Session, search: str | None, limit: int) -> VendorList:

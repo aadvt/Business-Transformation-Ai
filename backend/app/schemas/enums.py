@@ -114,3 +114,60 @@ class WSEventType(StrEnum):
     SETTLEMENT_STAGED = "SETTLEMENT_STAGED"
     FORECAST_ALERT = "FORECAST_ALERT"
     HEARTBEAT = "HEARTBEAT"
+    # Demo phase D0 additions — emitting code doesn't exist yet for all of
+    # these (see CLAUDE.md's "Demo phases" section); the frontend is building
+    # against the shape now, not later.
+    IMPACT_COMPUTED = "IMPACT_COMPUTED"
+    PLAN_PROPOSED = "PLAN_PROPOSED"
+    CALL_STARTED = "CALL_STARTED"
+    CALL_TRANSCRIPT = "CALL_TRANSCRIPT"
+    CALL_FIELD_EXTRACTED = "CALL_FIELD_EXTRACTED"
+    CALL_ENDED = "CALL_ENDED"
+    INGEST_PROGRESS = "INGEST_PROGRESS"
+    BRIEFING_READY = "BRIEFING_READY"
+
+
+class GraphNodeKind(StrEnum):
+    VENDOR = "VENDOR"
+    ITEM = "ITEM"
+    LINE = "LINE"
+    ORDER = "ORDER"
+    PLANT = "PLANT"
+
+
+class GraphNodeState(StrEnum):
+    HEALTHY = "HEALTHY"
+    AT_RISK = "AT_RISK"
+    IMPACTED = "IMPACTED"
+    SUBSTITUTED = "SUBSTITUTED"
+
+
+class ScenarioKind(StrEnum):
+    BACKED_OUT = "BACKED_OUT"
+    PRICE_HIKE = "PRICE_HIKE"
+    DELAYED = "DELAYED"
+    SHUT_DOWN = "SHUT_DOWN"
+
+
+class CallStatus(StrEnum):
+    DIALING = "DIALING"
+    CONNECTED = "CONNECTED"
+    NEGOTIATING = "NEGOTIATING"
+    CONFIRMED = "CONFIRMED"
+    FAILED = "FAILED"
+    ENDED = "ENDED"
+
+
+class PlanChangeKind(StrEnum):
+    SPLIT_ORDER = "SPLIT_ORDER"
+    SWITCH_VENDOR = "SWITCH_VENDOR"
+    PULL_FORWARD_STOCK = "PULL_FORWARD_STOCK"
+    REDUCE_QUANTITY = "REDUCE_QUANTITY"
+    EXPEDITE_FREIGHT = "EXPEDITE_FREIGHT"
+
+
+class IngestStatus(StrEnum):
+    QUEUED = "QUEUED"
+    PARSING = "PARSING"
+    RESOLVED = "RESOLVED"
+    FAILED = "FAILED"

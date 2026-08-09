@@ -450,6 +450,163 @@ background Sentinel loop, which queries every 30s) hold locks that collide
 with it — hit this for real: `psycopg.errors.DeadlockDetected` on
 `DROP TABLE audit_log`. Kill the uvicorn process first, reseed, then restart.
 
+## Demo phases (D0-D7)
+
+Phases 1-4b (above) are the backend build. The demo layer on top is numbered
+D0-D7 so it never collides with that numbering. Each demo phase gets recorded
+here as it's completed, same style as the phase notes above.
+
+### D0: dead code removed, demo enums, extended simulate, demo control plane
+
+- Deleted `app/db.py`, `app/db_models.py`, `app/idempotency.py` — all three
+  were unreachable dead code from an early async-store design that never
+  shipped: `app/db/` (the package) shadows `app/db.py` (the module) in
+  Python's import resolution, so every `from app.db import ...` anywhere in
+  the codebase always resolved to the package, never the module, and nothing
+  ever imported `app.db_models` or `app.idempotency` at all. Verified by
+  grepping every import site and confirming `python -c "import app.db;
+  print(app.db.__file__)"` prints `app/db/__init__.py`. Full test suite ran
+  before and after — same pass/fail set, confirming the deletion changed
+  nothing reachable. (Do not confuse this with `app/repositories/_idempotency.py`,
+  which is live and documented above under "Idempotency".)
+- New enums in `app/schemas/enums.py`: `GraphNodeKind`, `GraphNodeState`,
+  `ScenarioKind`, `CallStatus`, `PlanChangeKind`, `IngestStatus`, plus 8 new
+  `WSEventType` values (`IMPACT_COMPUTED`, `PLAN_PROPOSED`, `CALL_STARTED`,
+  `CALL_TRANSCRIPT`, `CALL_FIELD_EXTRACTED`, `CALL_ENDED`, `INGEST_PROGRESS`,
+  `BRIEFING_READY`). None of these have emitting/consuming code yet except
+  `ScenarioKind` (see below) — they exist so the frontend can build against
+  the WS payload shapes now; CONTRACT.md documents a sample payload for each.
+  Whichever demo phase first emits one of the 8 new WS events should update
+  CONTRACT.md's "emitting code doesn't exist yet" note for that event.
+- `POST /api/v1/disruptions/simulate` gained a second, optional request
+  shape: `{vendor_id, kind, effective_date}` alongside the original
+  `{scenario}` shape, which is **unchanged and still the priority path** if
+  `scenario` is present — see `app/routers/simulate.py`. The free-form path
+  creates a `DisruptionEvent` directly (no Sentinel detector run) with
+  `detector_name="demo_manual_trigger"` — a name that can never collide with
+  a real detector's dedup check — and a deterministic (not LLM-generated)
+  headline template per `ScenarioKind`, since the disruption type is already
+  known from the kind→type mapping and there's no ambiguous signal for an
+  LLM to classify. Both paths still run the same Diagnosis → Sourcing
+  pipeline to `AWAITING_APPROVAL` through `asyncio.to_thread`, same as
+  before.
+- `GET /api/v1/simulate/targets` (new): lists seeded vendors with at least
+  one open PO, sorted by an estimated exposure computed via the real
+  `app.services.exposure.compute_exposure` (blocked value + penalty
+  exposure only — no idle cost, no backup quote, since neither is known
+  before a disruption exists). This is a *pre-trigger estimate* for
+  populating the frontend's trigger modal, not a persisted `exposure_calcs`
+  row — don't confuse the two if a number looks off.
+- New demo control plane: `POST /api/v1/demo/reset` and `GET
+  /api/v1/demo/state` in `app/routers/demo.py`. `/demo/reset` deliberately
+  does NOT touch the schema — no `drop_all`/`create_all`, which CLAUDE.md's
+  "Schema drift note" documents as deadlocking against a running server. It
+  deletes rows from the disruption-lifecycle tables only (children before
+  parents: `agent_runs`, `audit_log`, `vendor_candidates`, `verifications`,
+  `negotiations`, `approvals`, `exposure_calcs`, `disruption_events` — note
+  `verifications` isn't in the original literal ask but has to be cleared
+  too, since it FK's to `disruption_events.id` and Postgres enforces that
+  constraint even though sqlite doesn't) and clears the WS ring buffer, then
+  calls `app.seed._seed_legacy_disruptions` directly (with a fresh
+  `Random(SEED)`) to put the three golden-path disruptions back — same
+  function `python -m app.seed --reset` itself uses for that part, so the
+  result is the same shape without the ~20k-row vendor/PO/inventory
+  regeneration or the schema rebuild. Vendors, POs, inventory, comm events,
+  and settlement batches are untouched. `/demo/state` reuses
+  `store.metrics_demo.integrations` (the same fixture-backed values
+  `GET /metrics/demo` returns — see "Repository layer" above on why that
+  endpoint stays fixture-backed) rather than recomputing integration status,
+  but calls `app.agents.detectors.ttm_forecast.is_available()` and
+  `app.db.session.check_connectivity()` directly for `ttm_loaded` and
+  `db_roundtrip_ms` so those two fields are live, not fixture-backed.
+- `CONTRACT.md` updated with all of the above, `openapi.json` regenerated via
+  `scripts/export_openapi.py`, and `tests/test_contract.py` extended to hit
+  every new endpoint (including a duplicate-trigger check on the free-form
+  simulate path and a round-trip check that `/demo/reset` actually restores
+  `GET /disruptions` to 3 items).
+
+### D1: impact graph
+
+- Confirmed before starting: `POST /api/v1/disruptions/simulate` with
+  `{"scenario": "delivery_delay_castings"}` still reaches
+  `AWAITING_APPROVAL` after D0 — verified with a clean `POST /demo/reset`
+  followed by an uninterrupted run. (The one time it looked broken during
+  this phase's own testing, the disruption was stuck at `DIAGNOSED` from an
+  *earlier* test process that got force-killed mid-pipeline by an impatient
+  `timeout` wrapper — `POST /disruptions/simulate` correctly refuses to
+  re-run a disruption that's already past `DETECTED`, so it just kept
+  reporting the stuck stage. `POST /demo/reset` is exactly the fix for that
+  class of leftover state; don't mistake it for a pipeline regression again.)
+- New `app/services/impact.py` — `build_impact_graph(session, disruption) ->
+  ImpactGraph`. Pure deterministic graph traversal, same principle as
+  `app/services/exposure.py`: **no LLM call anywhere in this module.** Layers
+  left to right: `0 VENDOR` → `1 ITEM` (distinct `item_sku` from the vendor's
+  open POs) → `2 LINE` (a single aggregate line node, present only if at
+  least one item's SKU is tracked in `inventory_snapshots` — reuses
+  `app.agents.diagnosis._is_production_critical` per-SKU rather than
+  reimplementing that check, per instructions) and a fixed `2 PLANT` anchor
+  (the org, always emitted) → `3 ORDER` (open POs carrying a
+  `downstream_order_ref`). **The PLANT anchor has no edges** — it's a layout
+  landmark for the frontend, not a propagation step; giving it an edge from
+  LINE would put two nodes at the same layer on either end of an edge, which
+  breaks the "every edge strictly increases layer" invariant the tests
+  assert. `summary` reads the disruption's own latest `exposure_calcs` row
+  exactly the way `repositories/disruptions.py` does — it is never
+  recomputed here, per the "one number" rule in CLAUDE.md's governing
+  principle for agents (this module isn't an agent, but the rule still
+  applies to anything that puts a ₹ figure in front of a judge).
+- Severity tiers (`impact_tier1_exposure_paise` / `impact_tier2_exposure_paise`
+  in `app/config.py`, ₹10L / ₹3L) are echoed back in the response as
+  `tier_thresholds_paise` so the UI can show its work.
+- `GET /api/v1/disruptions/{id}/impact` — router in
+  `app/routers/disruptions.py`, same `settings.use_mocks` branch pattern as
+  every other disruption endpoint, mock fixture in
+  `app/mocks/fixtures/impact.json` (hand-authored, like `forecasts.json` —
+  the mock store has no `purchase_orders` table to derive a graph from).
+- **Process-lifetime cache**, keyed on `(disruption_id, version)` where
+  `version` stands in for an `updated_at` column `DisruptionEvent` doesn't
+  have: the max of its own per-stage `*_at` timestamps, plus its latest
+  `exposure_calcs.computed_at` if one exists (see
+  `app.services.impact.disruption_version_key`) — a new exposure row (e.g.
+  Sourcing pricing a backup quote) is what actually changes the graph's
+  content between two calls, so it's part of the cache key even though it
+  lives on a different table. Plain module-level dict, cleared on restart;
+  that's fine, it rebuilds on first read.
+- `app/orchestrator/pipeline.py`: `IMPACT_COMPUTED` now fires for real,
+  between the `DIAGNOSED` transition and the `SOURCING` transition, with the
+  full `ImpactGraph` as payload — this is what makes the frontend's canvas
+  animate, so it has to happen during the pipeline run, not only be
+  computable on request. Graph building is DB-only and fast but still sync
+  SQLAlchemy, so it's wrapped in `asyncio.to_thread` same as every agent call
+  in this file (CLAUDE.md's event-loop-stall bug applies here too, even
+  though this isn't an agent). One `append_audit` entry per computation
+  (action `IMPACT_COMPUTED`, detail carries impacted-node count, at-risk-order
+  count, and the `exposure_calc_id` the graph read) — via `append_audit`,
+  never a direct `AuditLogEntry` construction.
+- `tests/test_impact.py`: in-memory sqlite, no network, no LLM (there's none
+  to call) — asserts determinism, every edge references a real node, layers
+  strictly increase along every edge, and the summary exposure is checked
+  against the actual DB row's value, not a literal. `tests/test_contract.py`
+  hits the live endpoint against the shared seeded DB but only asserts
+  `VENDOR`/`PLANT` are always present (open-PO count for the seeded D1
+  vendor varies run to run since `_generate_purchase_orders` is randomized
+  and demo/reset doesn't regenerate purchase orders — don't assert a
+  specific non-empty item/order set against that shared disruption again).
+
+### D4: approval broadcast + WhatsApp mock
+
+- **No new table.** `GET /api/v1/phone/messages?disruption_id=` queries existing
+  data (disruption alerts, approval cards, negotiation outcomes, settlement
+  updates) and deterministically builds the message thread, sorted oldest first.
+  This is the honest deliverable: no WhatsApp Business API or Twilio integration,
+  just a mock UI fed by DB state. Declared in CONTRACT.md.
+- **APPROVAL_DECIDED broadcast enriched**: already existed; updated payload to
+  include `disruption_id`, `approval_id`, `decision`, `channel`, `decided_by`
+  (previously missing some fields). Broadcast still fires only on fresh
+  decisions, never on idempotent replays (CLAUDE.md's rule stands).
+- Tests added to `test_contract.py` verifying phone messages endpoint works and
+  returns deterministic results.
+
 ## Adding a new DB-backed endpoint
 
 1. Table already exists? Add/extend the ORM model in `app/db/models.py`

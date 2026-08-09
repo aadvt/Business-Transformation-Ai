@@ -329,6 +329,8 @@ def _build_vendor(rng: Random, vid: str, name: str, city: str, state: str, categ
         avg_lead_time_days=float(rng.randint(3, 12)),
         is_backup_pool=not is_primary,
         payment_terms_days=rng.choice([15, 30, 45]),
+        capacity_hint=rng.choice(["Low", "Medium", "High", "Very High"]),
+        price_band=rng.choice(["Budget", "Standard", "Premium"]),
         created_at=now - timedelta(days=rng.randint(200, 1200)),
         updated_at=now - timedelta(days=rng.randint(0, 30)),
     )

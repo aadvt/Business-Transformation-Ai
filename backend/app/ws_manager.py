@@ -34,6 +34,13 @@ class LiveFeedManager:
     def replay_buffer(self) -> list[WSEvent]:
         return list(self._ring_buffer)
 
+    def clear_buffer(self) -> None:
+        self._ring_buffer.clear()
+
+    @property
+    def connection_count(self) -> int:
+        return len(self._connections)
+
     async def broadcast(
         self,
         event_type: WSEventType,

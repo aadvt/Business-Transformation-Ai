@@ -58,6 +58,8 @@ class Vendor(Base, IdMixin):
     avg_lead_time_days: Mapped[float] = mapped_column(Float)
     is_backup_pool: Mapped[bool] = mapped_column(Boolean, default=False)
     payment_terms_days: Mapped[int] = mapped_column(Integer)
+    capacity_hint: Mapped[str] = mapped_column(String(100), default="Medium")
+    price_band: Mapped[str] = mapped_column(String(50), default="Standard")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -243,6 +245,22 @@ class SettlementItem(Base, IdMixin):
     reference: Mapped[str] = mapped_column(String(100))
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+
+
+class RemediationPlanRow(Base, IdMixin):
+    __tablename__ = "remediation_plans"
+
+    disruption_id: Mapped[str] = mapped_column(String(36), ForeignKey("disruption_events.id"), index=True)
+    changes: Mapped[list] = mapped_column(JSON)  # list of PlanChange dicts
+    before_exposure_paise: Mapped[int] = mapped_column(BigInteger)
+    after_exposure_paise: Mapped[int] = mapped_column(BigInteger)
+    cost_to_resolve_paise: Mapped[int] = mapped_column(BigInteger)
+    net_saving_paise: Mapped[int] = mapped_column(BigInteger)
+    requires_escalation: Mapped[bool] = mapped_column(Boolean, default=False)
+    escalation_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    solve_ms: Mapped[float] = mapped_column(Float)
+    solver: Mapped[str] = mapped_column(String(50))  # "ORTOOLS_CPSAT" or "GREEDY_FALLBACK"
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class AgentRun(Base, IdMixin):

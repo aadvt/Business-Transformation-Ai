@@ -52,6 +52,36 @@ def test_get_disruption(client):
     assert r.status_code == 404
 
 
+def test_disruption_impact(client):
+    r = client.get(f"/api/v1/disruptions/{DISRUPTION_ID}/impact")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["disruption_id"] == DISRUPTION_ID
+    # VENDOR (layer 0) and PLANT (layer 2, fixed anchor) are always present;
+    # ITEM/LINE/ORDER nodes depend on whether this vendor currently has any
+    # open POs in the shared seeded DB, so don't assert on those directly.
+    kinds = {n["kind"] for n in body["nodes"]}
+    assert "VENDOR" in kinds
+    assert "PLANT" in kinds
+    node_ids = {n["id"] for n in body["nodes"]}
+    for edge in body["edges"]:
+        assert edge["source"] in node_ids
+        assert edge["target"] in node_ids
+    layer_by_id = {n["id"]: n["layer"] for n in body["nodes"]}
+    for edge in body["edges"]:
+        assert layer_by_id[edge["source"]] < layer_by_id[edge["target"]]
+    # summary must equal D1's actual latest exposure_calcs row, not a re-derived number
+    disruption = client.get(f"/api/v1/disruptions/{DISRUPTION_ID}").json()
+    assert body["summary"]["exposure_total_paise"] == disruption["exposure"]["total_paise"]
+
+    r = client.get("/api/v1/disruptions/does-not-exist/impact")
+    assert r.status_code == 404
+
+    # cached: a second call returns the same computed_at (process-lifetime cache)
+    r2 = client.get(f"/api/v1/disruptions/{DISRUPTION_ID}/impact")
+    assert r2.json()["computed_at"] == body["computed_at"]
+
+
 def test_list_vendors(client):
     # Phase 2 seeds 24 vendors (14 primary + 10 backup pool) — see app/seed.py —
     # so this checks shape/plausibility rather than a Phase-1-fixture-specific count.
@@ -222,3 +252,122 @@ def test_live_ws_connect_and_replay(client):
         # Nothing has been broadcast yet in a fresh app instance, so the replay
         # buffer may be empty; the connection itself must succeed and stay open.
         ws.close()
+
+
+# --- Demo phase D0: extended simulate + demo control plane -----------------
+
+MARUDHAR_VENDOR_ID = "1f085369-1380-4c55-9cbc-f447ccd95df9"  # V4 — has an open PO history
+
+
+def test_simulate_targets(client):
+    r = client.get("/api/v1/simulate/targets")
+    assert r.status_code == 200
+    body = r.json()
+    assert "items" in body
+    for item in body["items"]:
+        assert {
+            "vendor_id", "name", "category", "open_po_count",
+            "downstream_line_count", "est_exposure_paise", "recommended_kinds",
+        } <= item.keys()
+        assert item["open_po_count"] > 0
+    # sorted descending by estimated exposure
+    exposures = [i["est_exposure_paise"] for i in body["items"]]
+    assert exposures == sorted(exposures, reverse=True)
+
+
+def test_simulate_missing_params(client):
+    r = client.post("/api/v1/disruptions/simulate", json={})
+    assert r.status_code == 422
+
+
+def test_simulate_unknown_vendor(client):
+    r = client.post(
+        "/api/v1/disruptions/simulate",
+        json={"vendor_id": "does-not-exist", "kind": "DELAYED"},
+    )
+    assert r.status_code == 404
+
+
+def test_simulate_custom_vendor_kind(client):
+    r1 = client.post(
+        "/api/v1/disruptions/simulate",
+        json={"vendor_id": MARUDHAR_VENDOR_ID, "kind": "BACKED_OUT", "effective_date": "2026-08-14"},
+    )
+    assert r1.status_code == 200
+    body1 = r1.json()
+    assert body1["scenario"] == "custom:BACKED_OUT"
+    assert body1["stage"] in ("AWAITING_APPROVAL", "FAILED")
+
+    # replaying against the same vendor+kind reports current stage rather
+    # than re-raising a duplicate disruption.
+    r2 = client.post(
+        "/api/v1/disruptions/simulate",
+        json={"vendor_id": MARUDHAR_VENDOR_ID, "kind": "BACKED_OUT"},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["disruption_id"] == body1["disruption_id"]
+    assert r2.json()["newly_triggered"] is False
+
+
+def test_simulate_scenario_backward_compatible(client):
+    r = client.post("/api/v1/disruptions/simulate", json={"scenario": "delivery_delay_castings"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["scenario"] == "delivery_delay_castings"
+    assert body["stage"] in ("AWAITING_APPROVAL", "FAILED")
+
+
+def test_demo_state(client):
+    r = client.get("/api/v1/demo/state")
+    assert r.status_code == 200
+    body = r.json()
+    assert "disruption_count_by_stage" in body
+    assert "integrations" in body
+    assert isinstance(body["ttm_loaded"], bool)
+    assert isinstance(body["ws_client_count"], int)
+    assert "db_roundtrip_ms" in body
+
+
+def test_demo_reset(client):
+    r = client.post("/api/v1/demo/reset")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["reseeded_disruptions"] == 3
+    for table in (
+        "agent_runs", "audit_log", "vendor_candidates", "verifications",
+        "negotiations", "approvals", "exposure_calcs", "disruption_events", "ws_ring_buffer",
+    ):
+        assert table in body["cleared"]
+
+    # the three legacy golden-path disruptions are back, and the manual
+    # trigger + stockout signals from earlier tests in this module are gone.
+    r2 = client.get("/api/v1/disruptions")
+    assert r2.status_code == 200
+    assert r2.json()["total"] == 3
+
+
+def test_phone_messages(client):
+    """D4: Message thread from DB state (mock WhatsApp UI, no actual integration)."""
+    r = client.get(f"/api/v1/phone/messages?disruption_id={DISRUPTION_ID}")
+    assert r.status_code == 200
+    body = r.json()
+    assert "messages" in body
+    messages = body["messages"]
+    assert len(messages) > 0
+    # Messages should be sorted oldest first
+    timestamps = [m["at"] for m in messages]
+    assert timestamps == sorted(timestamps)
+    # Every message has required fields
+    for msg in messages:
+        assert "id" in msg
+        assert "at" in msg
+        assert "direction" in msg
+        assert msg["direction"] in ("IN", "OUT")
+        assert "kind" in msg
+        assert msg["kind"] in ("TEXT", "ALERT", "APPROVAL_CARD", "RESULT")
+        assert "text" in msg
+        if msg["kind"] == "APPROVAL_CARD":
+            assert "card" in msg
+            assert "disruption_id" in msg["card"]
+            assert "approval_id" in msg["card"]
+            assert "actions" in msg["card"]

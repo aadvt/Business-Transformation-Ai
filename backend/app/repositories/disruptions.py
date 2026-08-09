@@ -73,6 +73,8 @@ def _diagnosis_schema(row: DisruptionEvent) -> Diagnosis:
 
 
 def _candidates_schema(session: Session, disruption_id: str) -> list[SourcingCandidate]:
+    from app.db.models import AuditLogEntry
+
     rows = session.execute(
         select(VendorCandidate).where(VendorCandidate.disruption_id == disruption_id).order_by(VendorCandidate.rank)
     ).scalars().all()
@@ -101,6 +103,27 @@ def _candidates_schema(session: Session, disruption_id: str) -> list[SourcingCan
                 udyam_status=VerificationStatus.UNAVAILABLE, checked_at=to_iso(row.created_at), source="NONE",
             )
 
+        # Look up score components from audit log
+        score_components = None
+        audit_entry = session.execute(
+            select(AuditLogEntry)
+            .where(
+                AuditLogEntry.disruption_id == disruption_id,
+                AuditLogEntry.action == "CANDIDATE_SCORED",
+                AuditLogEntry.detail["vendor_id"] == row.vendor_id,
+            )
+            .order_by(AuditLogEntry.at.desc())
+            .limit(1)
+        ).scalar_one_or_none()
+        if audit_entry and isinstance(audit_entry.detail, dict):
+            score_components = {
+                "reliability": audit_entry.detail.get("reliability_component"),
+                "lead_time": audit_entry.detail.get("lead_time_component"),
+                "price": audit_entry.detail.get("price_component"),
+                "geography": audit_entry.detail.get("geography_component"),
+                "relationship": audit_entry.detail.get("relationship_component"),
+            }
+
         out.append(
             SourcingCandidate(
                 vendor_id=row.vendor_id,
@@ -109,6 +132,7 @@ def _candidates_schema(session: Session, disruption_id: str) -> list[SourcingCan
                 verification=v,
                 quoted_lead_time_days=row.quoted_lead_time_days,
                 quoted_unit_price_paise=row.quoted_unit_price_paise,
+                score_components=score_components,
             )
         )
     return out
