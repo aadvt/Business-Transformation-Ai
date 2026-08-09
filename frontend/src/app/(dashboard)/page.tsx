@@ -1,14 +1,8 @@
-import PageHeader from "@/components/PageHeader";
 import OperationsWorkspace from "@/components/OperationsWorkspace";
 
+/* No PageHeader here on purpose: the shell's header already names this route,
+   and the dashboard's subject is the live network itself. The focused vendor
+   and its exposure float over the map instead. */
 export default function WarRoomPage() {
-  return (
-    <div>
-      <PageHeader
-        title="Operations network"
-        subtitle="Track delivery health, investigate disruptions, and ingest supply data from one workspace."
-      />
-      <OperationsWorkspace />
-    </div>
-  );
+  return <OperationsWorkspace />;
 }

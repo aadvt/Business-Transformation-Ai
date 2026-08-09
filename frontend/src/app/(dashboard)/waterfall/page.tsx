@@ -3,6 +3,7 @@
 import { useAgentsStatus, useDisruptions } from "@/lib/queries";
 import AgentStatusStrip from "@/components/AgentStatusStrip";
 import WaterfallPipeline from "@/components/WaterfallPipeline";
+import PipelineBoard from "@/components/PipelineBoard";
 import Skeleton from "@/components/ui/skeleton";
 import PageHeader, { EmptyState, SectionHeading } from "@/components/PageHeader";
 import type { DisruptionStage } from "@/lib/types";
@@ -46,6 +47,19 @@ export default function WaterfallPage() {
         )}
       </section>
 
+      {/* The board answers "where is everything right now"; the stepper list
+          below answers "how did this one get here". Same data, two different
+          reading tasks — the board is the one you scan. */}
+      <section className="mb-6">
+        {/* No SectionHeading here — PipelineBoard carries its own header, and
+            two labels for one board is one too many. */}
+        {disruptionsLoading || !agentsResponse ? (
+          <Skeleton className="h-64" />
+        ) : (
+          <PipelineBoard disruptions={sorted} agents={agentsResponse.agents} />
+        )}
+      </section>
+
       <section>
         <SectionHeading count={sorted.length}>Disruptions in flight</SectionHeading>
         {disruptionsLoading ? (
@@ -53,7 +67,7 @@ export default function WaterfallPage() {
         ) : sorted.length === 0 ? (
           <EmptyState>Nothing in the pipeline right now.</EmptyState>
         ) : (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {sorted.map((d) => (
               <WaterfallPipeline key={d.id} disruption={d} />
             ))}

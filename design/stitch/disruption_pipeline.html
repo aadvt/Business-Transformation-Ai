@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Pipeline Kanban Board - Sanjeevani</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-secondary-container": "#54647a",
+                "surface": "#faf8ff",
+                "surface-container-low": "#f2f3ff",
+                "tertiary": "#525657",
+                "tertiary-container": "#6b6e70",
+                "on-primary-fixed": "#00174b",
+                "on-error": "#ffffff",
+                "tertiary-fixed-dim": "#c4c7c9",
+                "tertiary-fixed": "#e0e3e5",
+                "on-surface": "#131b2e",
+                "surface-container-lowest": "#ffffff",
+                "inverse-on-surface": "#eef0ff",
+                "background": "#faf8ff",
+                "error": "#ba1a1a",
+                "on-error-container": "#93000a",
+                "surface-container": "#eaedff",
+                "primary-fixed": "#dbe1ff",
+                "on-primary": "#ffffff",
+                "error-container": "#ffdad6",
+                "on-surface-variant": "#434655",
+                "inverse-surface": "#283044",
+                "on-secondary-fixed-variant": "#38485d",
+                "on-primary-fixed-variant": "#003ea8",
+                "surface-dim": "#d2d9f4",
+                "outline-variant": "#c3c6d7",
+                "on-tertiary-fixed": "#191c1e",
+                "secondary": "#505f76",
+                "primary-fixed-dim": "#b4c5ff",
+                "outline": "#737686",
+                "secondary-container": "#d0e1fb",
+                "on-tertiary": "#ffffff",
+                "surface-tint": "#0053db",
+                "surface-variant": "#dae2fd",
+                "surface-bright": "#faf8ff",
+                "secondary-fixed-dim": "#b7c8e1",
+                "primary-container": "#2563eb",
+                "on-background": "#131b2e",
+                "on-secondary-fixed": "#0b1c30",
+                "secondary-fixed": "#d3e4fe",
+                "on-tertiary-fixed-variant": "#444749",
+                "inverse-primary": "#b4c5ff",
+                "on-tertiary-container": "#eff1f3",
+                "primary": "#004ac6",
+                "on-primary-container": "#eeefff",
+                "surface-container-high": "#e2e7ff",
+                "on-secondary": "#ffffff",
+                "surface-container-highest": "#dae2fd",
+                "lane-bg": "#F3F5F4"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "xl": "80px",
+                "sm": "12px",
+                "margin-mobile": "16px",
+                "lg": "48px",
+                "base": "8px",
+                "md": "24px",
+                "xs": "4px",
+                "gutter": "24px",
+                "margin-desktop": "64px"
+        },
+        "fontFamily": {
+                "body-md": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "body-sm": [
+                        "Inter"
+                ],
+                "headline-xl": [
+                        "Manrope"
+                ],
+                "headline-lg-mobile": [
+                        "Manrope"
+                ],
+                "headline-lg": [
+                        "Manrope"
+                ]
+        },
+        "fontSize": {
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.05em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-sm": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-xl": [
+                        "48px",
+                        {
+                                "lineHeight": "56px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "40px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "700"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        .material-symbols-outlined {
+            font-family: 'Material Symbols Outlined';
+            font-weight: normal;
+            font-style: normal;
+            font-size: 24px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen overflow-hidden flex flex-col font-body-md">
+<!-- Top Navigation Area -->
+<header class="bg-surface border-b border-outline-variant h-12 flex justify-between items-center px-gutter flex-shrink-0 z-50">
+<div class="flex items-center gap-4">
+<h1 class="font-headline-lg-mobile text-headline-lg-mobile text-primary">SANJEEVANI</h1>
+<nav class="hidden md:flex gap-6 ml-8">
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md uppercase" href="#">Dashboard</a>
+<a class="text-primary border-b-2 border-primary pb-[14px] pt-4 font-label-md text-label-md uppercase" href="#">Pipeline</a>
+<a class="text-on-surface-variant hover:text-primary transition-colors font-label-md text-label-md uppercase" href="#">Settlements</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="search">search</span>
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="notifications">notifications</span>
+<div class="w-8 h-8 rounded-full overflow-hidden border border-outline-variant">
+<img alt="Agent Profile" class="w-full h-full object-cover" data-alt="A small, professional avatar portrait of a logistics manager, neutral background, sharp focus, professional attire, high contrast, clinical lighting, corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCeaw2p0Fa9w-6JK4Q6NsO6mMkdoUvcfNvJkSyUx8mG1vn6RtLbjsXTDYVVd2thqW4s3ezQDMuZqYhdxrsf8891WMZNmEa0M2RHNYPm2Lz4RgMOiI1kf6fIUV7cHuJnl-HaXxRWPvpYn9iLD268mxrmtXieIH9p-C-Efz1GTQRY53GmKctLValBJ1hFEYxuL_X5Xb43Q4RZih_oGX4OrxO_r5qwgvw2KLznC1YBzbm1Oog0L19CXuTy"/>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col h-[calc(100vh-48px)]">
+<!-- Top Tool Bar: Agent Status Chips -->
+<div class="px-gutter py-4 border-b border-outline-variant bg-surface flex gap-3 overflow-x-auto hide-scrollbar flex-shrink-0">
+<!-- Agent 1 -->
+<div class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-xl bg-surface-container-lowest">
+<div class="w-2 h-2 rounded-full bg-primary-fixed-dim"></div>
+<span class="font-label-md text-label-md text-on-surface uppercase">Alex R.</span>
+</div>
+<!-- Agent 2 -->
+<div class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-xl bg-surface-container-lowest">
+<div class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></div>
+<span class="font-label-md text-label-md text-on-surface uppercase">Sarah T.</span>
+</div>
+<!-- Agent 3 -->
+<div class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-xl bg-surface-container-lowest">
+<div class="w-2 h-2 rounded-full bg-error"></div>
+<span class="font-label-md text-label-md text-on-surface uppercase">James W.</span>
+</div>
+<!-- Agent 4 -->
+<div class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-xl bg-surface-container-lowest">
+<div class="w-2 h-2 rounded-full bg-secondary-fixed"></div>
+<span class="font-label-md text-label-md text-on-surface uppercase">Elena K.</span>
+</div>
+<!-- Agent 5 -->
+<div class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-xl bg-surface-container-lowest">
+<div class="w-2 h-2 rounded-full bg-primary-container"></div>
+<span class="font-label-md text-label-md text-on-surface uppercase">Marcus L.</span>
+</div>
+<!-- Agent 6 -->
+<div class="flex items-center gap-2 px-3 py-1.5 border border-outline-variant rounded-xl bg-surface-container-lowest">
+<div class="w-2 h-2 rounded-full bg-tertiary-container"></div>
+<span class="font-label-md text-label-md text-on-surface uppercase">Fiona B.</span>
+</div>
+</div>
+<!-- Kanban Board -->
+<div class="flex-1 overflow-x-auto hide-scrollbar p-gutter bg-background flex gap-6">
+<!-- Lane 1: Awaiting Approval -->
+<div class="flex-shrink-0 w-[320px] flex flex-col bg-surface-container-low rounded-xl p-2 h-full border border-outline-variant">
+<div class="flex justify-between items-center px-2 py-3 mb-2 border-b border-outline-variant">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Awaiting Approval</h2>
+<span class="bg-surface-container border border-outline-variant px-2 py-0.5 rounded-xl font-label-md text-label-md text-on-surface-variant">3</span>
+</div>
+<div class="flex-1 overflow-y-auto hide-scrollbar flex flex-col gap-3 pb-4">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest p-4 border border-outline-variant rounded-xl hover:bg-secondary-container transition-colors relative cursor-pointer">
+<div class="absolute top-4 right-4 w-2 h-2 rounded-full bg-primary-fixed-dim"></div>
+<h3 class="font-label-md text-label-md text-on-surface uppercase mb-2">Alpha Logistics</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4 line-clamp-2">Initial manifest submission for bulk cargo via Route 7. Pending compliance check.</p>
+<div class="flex justify-between items-end border-t border-outline-variant pt-3">
+<span class="font-body-md font-semibold text-primary">$45,000</span>
+<span class="font-label-md text-label-md text-outline">3h in this stage</span>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest p-4 border border-outline-variant rounded-xl hover:bg-secondary-container transition-colors relative cursor-pointer">
+<div class="absolute top-4 right-4 w-2 h-2 rounded-full bg-error"></div>
+<h3 class="font-label-md text-label-md text-on-surface uppercase mb-2">Nexus Freight</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4 line-clamp-2">Urgent clearance required for hazardous materials. Documentation incomplete.</p>
+<div class="flex justify-between items-end border-t border-outline-variant pt-3">
+<span class="font-body-md font-semibold text-error">$120,500</span>
+<span class="font-label-md text-label-md text-outline">12h in this stage</span>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest p-4 border border-outline-variant rounded-xl hover:bg-secondary-container transition-colors relative cursor-pointer">
+<div class="absolute top-4 right-4 w-2 h-2 rounded-full bg-tertiary-fixed-dim"></div>
+<h3 class="font-label-md text-label-md text-on-surface uppercase mb-2">Omega Transit</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4 line-clamp-2">Standard container load awaiting secondary inspector sign-off.</p>
+<div class="flex justify-between items-end border-t border-outline-variant pt-3">
+<span class="font-body-md font-semibold text-tertiary-container">$18,200</span>
+<span class="font-label-md text-label-md text-outline">1h in this stage</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Lane 2: Negotiating -->
+<div class="flex-shrink-0 w-[320px] flex flex-col bg-surface-container-low rounded-xl p-2 h-full border border-outline-variant">
+<div class="flex justify-between items-center px-2 py-3 mb-2 border-b border-outline-variant">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Negotiating</h2>
+<span class="bg-surface-container border border-outline-variant px-2 py-0.5 rounded-xl font-label-md text-label-md text-on-surface-variant">5</span>
+</div>
+<div class="flex-1 overflow-y-auto hide-scrollbar flex flex-col gap-3 pb-4">
+<!-- Card 4 -->
+<div class="bg-surface-container-lowest p-4 border border-outline-variant rounded-xl hover:bg-secondary-container transition-colors relative cursor-pointer">
+<div class="absolute top-4 right-4 w-2 h-2 rounded-full bg-primary-fixed-dim"></div>
+<h3 class="font-label-md text-label-md text-on-surface uppercase mb-2">Global Shippers</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4 line-clamp-2">Dispute over demurrage charges at Port Terminal B.</p>
+<div class="flex justify-between items-end border-t border-outline-variant pt-3">
+<span class="font-body-md font-semibold text-tertiary-container">$8,450</span>
+<span class="font-label-md text-label-md text-outline">2d in this stage</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Lane 3: In Progress -->
+<div class="flex-shrink-0 w-[320px] flex flex-col bg-surface-container-low rounded-xl p-2 h-full border border-outline-variant">
+<div class="flex justify-between items-center px-2 py-3 mb-2 border-b border-outline-variant">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">In Progress</h2>
+<span class="bg-surface-container border border-outline-variant px-2 py-0.5 rounded-xl font-label-md text-label-md text-on-surface-variant">8</span>
+</div>
+<div class="flex-1 overflow-y-auto hide-scrollbar flex flex-col gap-3 pb-4">
+<!-- Card 5 -->
+<div class="bg-surface-container-lowest p-4 border border-outline-variant rounded-xl hover:bg-secondary-container transition-colors relative cursor-pointer">
+<div class="absolute top-4 right-4 w-2 h-2 rounded-full bg-secondary-fixed"></div>
+<h3 class="font-label-md text-label-md text-on-surface uppercase mb-2">Prime Carriers</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4 line-clamp-2">Active transit on Sector 4. No anomalies reported.</p>
+<div class="flex justify-between items-end border-t border-outline-variant pt-3">
+<span class="font-body-md font-semibold text-primary">$32,000</span>
+<span class="font-label-md text-label-md text-outline">5h in this stage</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Lane 4: Settlement Pending -->
+<div class="flex-shrink-0 w-[320px] flex flex-col bg-surface-container-low rounded-xl p-2 h-full border border-outline-variant">
+<div class="flex justify-between items-center px-2 py-3 mb-2 border-b border-outline-variant">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Settlement Pending</h2>
+<span class="bg-surface-container border border-outline-variant px-2 py-0.5 rounded-xl font-label-md text-label-md text-on-surface-variant">2</span>
+</div>
+<div class="flex-1 overflow-y-auto hide-scrollbar flex flex-col gap-3 pb-4">
+<!-- Card 6 -->
+<div class="bg-surface-container-lowest p-4 border border-outline-variant rounded-xl hover:bg-secondary-container transition-colors relative cursor-pointer">
+<div class="absolute top-4 right-4 w-2 h-2 rounded-full bg-primary-container"></div>
+<h3 class="font-label-md text-label-md text-on-surface uppercase mb-2">Zenith Corp</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4 line-clamp-2">Final invoice generated. Awaiting wire transfer confirmation.</p>
+<div class="flex justify-between items-end border-t border-outline-variant pt-3">
+<span class="font-body-md font-semibold text-primary">$210,000</span>
+<span class="font-label-md text-label-md text-outline">14h in this stage</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Lane 5: Closed -->
+<div class="flex-shrink-0 w-[320px] flex flex-col bg-surface-container-low rounded-xl p-2 h-full border border-outline-variant">
+<div class="flex justify-between items-center px-2 py-3 mb-2 border-b border-outline-variant">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Closed</h2>
+<span class="bg-surface-container border border-outline-variant px-2 py-0.5 rounded-xl font-label-md text-label-md text-on-surface-variant">44</span>
+</div>
+<div class="flex-1 overflow-y-auto hide-scrollbar flex flex-col gap-3 pb-4 opacity-75">
+<!-- Card 7 -->
+<div class="bg-surface-container-lowest p-4 border border-outline-variant rounded-xl relative">
+<div class="absolute top-4 right-4 w-2 h-2 rounded-full bg-outline-variant"></div>
+<h3 class="font-label-md text-label-md text-on-surface uppercase mb-2">Delta Forwarding</h3>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4 line-clamp-2">Shipment completed and archived.</p>
+<div class="flex justify-between items-end border-t border-outline-variant pt-3">
+<span class="font-body-md font-semibold text-outline">$15,500</span>
+<span class="font-label-md text-label-md text-outline">-</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

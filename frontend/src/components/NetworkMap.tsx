@@ -19,16 +19,19 @@ const MAP_ZOOM = 4.3;
 
 type SeverityTier = "critical" | "elevated" | "moderate";
 
+// Soft Logic's status palette. The plant reads as the deep brand blue and is
+// further distinguished by its diamond geometry, so it never reads as just
+// another moderate-severity vendor dot.
 const SEVERITY_COLOR: Record<SeverityTier, number> = {
-  critical: 0xd8484d,
-  elevated: 0xcf9a37,
-  moderate: 0x4d80b8,
+  critical: 0xba1a1a,
+  elevated: 0xc9820a,
+  moderate: 0x4d7fb8,
 };
 
 const SEVERITY_HEX: Record<SeverityTier, string> = {
-  critical: "#d8484d",
-  elevated: "#cf9a37",
-  moderate: "#4d80b8",
+  critical: "#ba1a1a",
+  elevated: "#c9820a",
+  moderate: "#4d7fb8",
 };
 
 // Higher severity = faster flow along the arc.
@@ -38,7 +41,7 @@ const SEVERITY_SPEED: Record<SeverityTier, number> = {
   moderate: 0.00022,
 };
 
-const PLANT_COLOR = 0xcf9a37;
+const PLANT_COLOR = 0x004ac6;
 const OUTLINE_COLOR = 0xffffff;
 
 // Mercator units — the whole world is 1.0 wide, so these are deliberately
@@ -122,14 +125,16 @@ interface PulseRing {
   maxScale: number;
 }
 
-export default function NetworkMap() {
+/** `bleed` drops the card chrome so the map can run edge-to-edge beneath the
+ *  shell on the operations dashboard; `panel` keeps it framed for /network. */
+export default function NetworkMap({ variant = "panel" }: { variant?: "panel" | "bleed" } = {}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const rebuildSceneRef = useRef<(() => void) | null>(null);
   const vendorsRef = useRef<Vendor[]>([]);
   const disruptionsRef = useRef<DisruptionSummary[]>([]);
 
-  const { data: vendorsData } = useVendors();
+  const { data: vendorsData, isPending: vendorsPending } = useVendors();
   const { data: disruptionsData } = useDisruptions();
 
   const vendors = useMemo(() => vendorsData?.items ?? [], [vendorsData]);
@@ -437,40 +442,46 @@ export default function NetworkMap() {
   }
 
   return (
-    <div className="panel-flush relative h-full">
+    <div className={variant === "bleed" ? "relative h-full w-full" : "panel-flush relative h-full"}>
       <div ref={containerRef} className="h-full w-full" />
 
-      <div className="pointer-events-none absolute top-3 left-3 rounded-md border border-line bg-surface/95 px-3 py-2">
+      {/* One legend rather than two stacked panels: over a live map, every
+          floating surface costs the operator map. Glass is used here because
+          the thing underneath is busy and moving — it is not decoration. */}
+      <div className="glass pointer-events-none absolute top-4 left-4 px-4 py-3">
         <span className="eyebrow">Supply network</span>
-        <p className="numeric mt-1 text-[20px] leading-none font-medium text-ink" data-numeric>
-          {vendors.length}
-        </p>
-        <p className="mt-1 text-[11px] text-ink-muted">
-          vendors · <span className="text-accent">{liveCount} live</span>
-        </p>
-      </div>
+        {/* A cold Neon compute makes the first fetch slow enough to see, and
+            rendering "0 vendors" while it lands would assert an empty network
+            that isn't empty. Loading gets its own treatment. */}
+        {vendorsPending ? (
+          <p className="mt-1.5 flex items-center gap-2">
+            <span className="skeleton h-5 w-9" />
+            <span className="text-[11px] text-ink-faint">loading network…</span>
+          </p>
+        ) : (
+          <p className="mt-1 flex items-baseline gap-1.5">
+            <span className="numeric text-[22px] leading-none font-semibold text-ink" data-numeric>
+              {vendors.length}
+            </span>
+            <span className="text-[11px] text-ink-muted">
+              vendors · <span className="font-medium text-accent">{liveCount} live</span>
+            </span>
+          </p>
+        )}
 
-      <div className="pointer-events-none absolute bottom-3 left-3 rounded-md border border-line bg-surface/95 px-3 py-2.5">
-        <span className="eyebrow">Severity</span>
-        <div className="mt-1.5 space-y-1">
+        <div className="mt-3 space-y-1.5 border-t border-line pt-2.5">
           {(["critical", "elevated", "moderate"] as SeverityTier[]).map((tier) => (
             <div key={tier} className="flex items-center gap-2 text-[11px] text-ink-muted">
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: SEVERITY_HEX[tier] }} />
+              <span className="size-2 shrink-0 rounded-full" style={{ background: SEVERITY_HEX[tier] }} />
               <span className="w-14 capitalize">{tier}</span>
               <span className="numeric text-ink-faint">
                 {tier === "critical" ? "≥ ₹1Cr" : tier === "elevated" ? "≥ ₹25L" : "< ₹25L"}
               </span>
             </div>
           ))}
-        </div>
-        <div className="mt-2 space-y-1 border-t border-line pt-2">
-          <div className="flex items-center gap-2 text-[11px] text-ink-muted">
-            <span className="h-1.5 w-1.5 rotate-45" style={{ background: "#cf9a37" }} />
+          <div className="flex items-center gap-2 pt-0.5 text-[11px] text-ink-muted">
+            <span className="size-2 shrink-0 rotate-45 bg-accent" />
             Chakan plant
-          </div>
-          <div className="flex items-center gap-2 text-[11px] text-ink-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-success" />
-            Vendor · reliability
           </div>
         </div>
       </div>

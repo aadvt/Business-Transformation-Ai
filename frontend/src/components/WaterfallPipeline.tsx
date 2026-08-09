@@ -24,10 +24,10 @@ function getNodeState(disruption: DisruptionSummary, phaseIndex: number): NodeSt
 }
 
 const DOT_CLASSES: Record<NodeState, string> = {
-  complete: "bg-success border-success text-white",
-  current: "bg-accent border-accent text-[#1a1305] animate-blink",
+  complete: "bg-success border-success text-accent-ink",
+  current: "bg-accent border-accent text-accent-ink animate-blink",
   pending: "bg-surface-2 border-line-strong text-ink-faint",
-  invalid: "bg-critical border-critical text-white",
+  invalid: "bg-critical border-critical text-accent-ink",
 };
 
 const CONNECTOR_CLASSES: Record<NodeState, string> = {
@@ -39,14 +39,14 @@ const CONNECTOR_CLASSES: Record<NodeState, string> = {
 
 export default function WaterfallPipeline({ disruption }: { disruption: DisruptionSummary }) {
   return (
-    <div className="panel p-4 mb-5">
-      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <span className="block text-base font-semibold text-ink">{disruption.vendor.name}</span>
-          <span className="mt-0.5 block text-[0.8125rem] text-ink-muted">{disruption.headline}</span>
+    <div className="panel px-5 py-4">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0">
+          <h3 className="text-[15px] leading-tight font-semibold text-ink">{disruption.vendor.name}</h3>
+          <p className="mt-1 text-[13px] text-ink-muted">{disruption.headline}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="numeric text-[0.9375rem] font-semibold text-accent">
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="numeric text-[15px] font-semibold text-accent" data-numeric>
             {disruption.exposure_total_display}
           </span>
           <StatusTag stage={disruption.stage} />
@@ -61,28 +61,37 @@ export default function WaterfallPipeline({ disruption }: { disruption: Disrupti
               <div className="flex w-full items-center">
                 <span
                   className={clsx(
-                    "flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2",
+                    "flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2",
                     DOT_CLASSES[state]
                   )}
                 >
-                  {state === "complete" && <Check size={16} />}
-                  {state === "invalid" && <X size={16} />}
-                  {(state === "current" || state === "pending") && <CircleDot size={12} />}
+                  {state === "complete" && <Check size={14} />}
+                  {state === "invalid" && <X size={14} />}
+                  {(state === "current" || state === "pending") && <CircleDot size={11} />}
                 </span>
-                {i < PIPELINE_PHASES.length - 1 && <span className={clsx("mx-1 h-0.5 flex-1", CONNECTOR_CLASSES[state])} />}
+                {i < PIPELINE_PHASES.length - 1 && (
+                  <span className={clsx("mx-1.5 h-px flex-1", CONNECTOR_CLASSES[state])} />
+                )}
               </div>
-              <div className="mt-2 flex flex-col items-center text-center">
-                <span className={clsx("text-xs font-semibold", state === "pending" ? "text-ink-faint" : "text-ink")}>
+              <div className="mt-2 flex flex-col items-center gap-0.5 px-1 text-center">
+                <span
+                  className={clsx(
+                    "text-[11px] font-semibold tracking-[0.04em] uppercase",
+                    state === "pending" ? "text-ink-faint" : "text-ink"
+                  )}
+                >
                   {phase.label}
                 </span>
-                <span className="mt-0.5 text-[0.6875rem] text-ink-muted">{phase.description}</span>
+                <span className="text-[11px] leading-snug text-ink-faint">{phase.description}</span>
               </div>
             </div>
           );
         })}
       </div>
 
-      <p className="mt-3 text-xs text-ink-muted">Detected {formatTimeAgo(disruption.detected_at)}</p>
+      <p className="mt-4 border-t border-line pt-3 text-[11px] text-ink-faint">
+        Detected {formatTimeAgo(disruption.detected_at)}
+      </p>
     </div>
   );
 }

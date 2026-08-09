@@ -24,17 +24,17 @@ export default function VerificationBadge({
 }) {
   const state = verified ? "full" : gstinVerified ? "partial" : "none";
   const { Icon, label, tone } = {
-    full: { Icon: ShieldCheck, label: "Verified", tone: "bg-success/12 text-success" },
-    partial: { Icon: ShieldQuestion, label: "GSTIN verified", tone: "bg-info/12 text-info" },
-    none: { Icon: ShieldAlert, label: "Unverified", tone: "bg-neutral/12 text-neutral" },
+    full: { Icon: ShieldCheck, label: "Verified", tone: "bg-success-dim text-success" },
+    partial: { Icon: ShieldQuestion, label: "GSTIN verified", tone: "bg-info-dim text-info" },
+    none: { Icon: ShieldAlert, label: "Unverified", tone: "bg-neutral-dim text-neutral" },
   }[state];
 
   return (
     <span
       className={clsx(
-        "inline-flex items-center gap-1 rounded-sm font-semibold tracking-wide uppercase",
+        "inline-flex items-center gap-1 rounded-full font-semibold tracking-wide uppercase",
         tone,
-        size === "sm" ? "px-1.5 py-px text-[9px]" : "px-2 py-1 text-[11px]",
+        size === "sm" ? "px-2 py-0.5 text-[9px]" : "px-2.5 py-1 text-[11px]",
         className
       )}
     >

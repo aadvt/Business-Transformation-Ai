@@ -14,7 +14,13 @@ function SelectTrigger({ className, children, ...props }: SelectPrimitive.Trigge
     <SelectPrimitive.Trigger
       data-slot="select-trigger"
       className={cn(
-        "flex h-9 w-full items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-3 text-left text-[13px] text-ink outline-none transition-colors duration-100 hover:border-line-strong data-open:border-accent",
+        "flex h-10 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-line bg-surface-2 px-3.5 text-left text-[13px] text-ink outline-none",
+        "transition-[background-color,border-color,box-shadow] duration-200 ease-out",
+        "hover:border-line-strong hover:bg-surface-3",
+        "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+        "data-open:border-accent data-open:bg-surface",
+        "disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-line disabled:hover:bg-surface-2",
+        "data-disabled:cursor-not-allowed data-disabled:opacity-45",
         className
       )}
       {...props}
@@ -38,7 +44,7 @@ function SelectContent({ className, children, ...props }: SelectPrimitive.Popup.
         <SelectPrimitive.Popup
           data-slot="select-content"
           className={cn(
-            "elevated max-h-72 w-[var(--anchor-width)] overflow-y-auto rounded-lg p-1 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+            "elevated max-h-72 w-[var(--anchor-width)] overflow-y-auto rounded-md p-1.5 duration-200 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
             className
           )}
           {...props}
@@ -55,7 +61,9 @@ function SelectItem({ className, children, ...props }: SelectPrimitive.Item.Prop
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "flex cursor-pointer flex-col gap-0.5 rounded-md px-2.5 py-1.5 text-[13px] text-ink outline-none data-highlighted:bg-surface-3",
+        "flex cursor-pointer flex-col gap-0.5 rounded-sm px-2.5 py-2 text-[13px] text-ink outline-none transition-colors duration-150",
+        "hover:bg-surface-2 data-highlighted:bg-accent-dim data-highlighted:text-accent data-selected:text-accent data-selected:font-medium",
+        "data-disabled:pointer-events-none data-disabled:opacity-45",
         className
       )}
       {...props}

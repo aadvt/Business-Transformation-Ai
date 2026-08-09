@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Check, CheckCircle2, ChevronDown, ChevronUp, Clock, IndianRupee, X } from "lucide-react";
+import { useId, useState } from "react";
+import { Check, CheckCircle2, ChevronDown, ChevronUp, Clock, X } from "lucide-react";
 import type { Disruption } from "@/lib/types";
 import { formatTimeAgo } from "@/lib/format";
 import { useDecideApproval } from "@/lib/queries";
@@ -24,6 +24,7 @@ export default function ApprovalCard({ disruption }: { disruption: Disruption })
   const [expanded, setExpanded] = useState(false);
   const [confirmingReject, setConfirmingReject] = useState(false);
   const decide = useDecideApproval();
+  const candidatesId = useId();
 
   const approvalId = disruption.approval?.id;
   const verifiedCount = disruption.candidates.filter((c) => c.verification.status === "VERIFIED").length;
@@ -36,45 +37,55 @@ export default function ApprovalCard({ disruption }: { disruption: Disruption })
   }
 
   return (
-    <Card className="border-l-2 border-l-accent">
+    <Card>
       <CardContent className="p-4">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <span className="text-[0.95rem] font-semibold text-ink">{disruption.vendor.name}</span>
-          <Badge tone="idle" dot={false}>
+        <div className="mb-2 flex items-start justify-between gap-2">
+          <h3 className="min-w-0 truncate text-[15px] leading-tight font-semibold text-ink">
+            {disruption.vendor.name}
+          </h3>
+          <Badge tone="idle" dot={false} className="shrink-0">
             {disruption.type.replace(/_/g, " ")}
           </Badge>
         </div>
 
-        <p className="mb-3 text-sm leading-relaxed text-ink-muted">{disruption.headline}</p>
+        <p className="mb-3 text-[13px] leading-relaxed text-ink-muted">{disruption.headline}</p>
 
-        <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-muted">
-          <span className="inline-flex items-center gap-1">
-            <Clock size={14} /> Detected {formatTimeAgo(disruption.detected_at)}
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+          <span className="inline-flex items-center gap-1 text-ink-faint">
+            <Clock size={13} /> Detected {formatTimeAgo(disruption.detected_at)}
           </span>
-          <span className="inline-flex items-center gap-1 font-semibold text-accent">
-            <IndianRupee size={14} /> <span className="numeric">{disruption.exposure.total_display}</span> exposure
+          <span className="inline-flex items-baseline gap-1 text-ink-muted">
+            <span className="numeric font-semibold text-accent" data-numeric>
+              {disruption.exposure.total_display}
+            </span>
+            exposure
           </span>
         </div>
 
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="mb-2 inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[0.8125rem] font-semibold text-success"
+          aria-expanded={expanded}
+          aria-controls={candidatesId}
+          className="-mx-1.5 mb-2 inline-flex cursor-pointer items-center gap-1.5 rounded-sm border-none bg-transparent px-1.5 py-1 text-[13px] font-semibold text-success transition-colors duration-150 hover:bg-success-dim"
         >
-          <CheckCircle2 size={16} />
-          {verifiedCount} verified candidate{verifiedCount === 1 ? "" : "s"} found
-          {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          <CheckCircle2 size={15} />
+          <span className="numeric" data-numeric>
+            {verifiedCount}
+          </span>
+          verified candidate{verifiedCount === 1 ? "" : "s"} found
+          {expanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
         </button>
 
         {expanded && (
-          <ul className="mb-3 flex flex-col gap-1.5">
+          <ul id={candidatesId} className="mb-3 flex flex-col gap-1">
             {disruption.candidates.map((c) => (
               <li
                 key={c.vendor_id}
                 className="flex items-center justify-between gap-2 rounded-md bg-surface-2 px-2.5 py-1.5 text-xs"
               >
-                <span className="font-medium text-ink">{c.name}</span>
-                <span className="numeric whitespace-nowrap text-ink-muted">
+                <span className="min-w-0 truncate font-medium text-ink">{c.name}</span>
+                <span className="numeric shrink-0 whitespace-nowrap text-ink-muted" data-numeric>
                   ETA {c.quoted_lead_time_days}d &middot; match {(c.match_score * 100).toFixed(0)}%
                 </span>
               </li>

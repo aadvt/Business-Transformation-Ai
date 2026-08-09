@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sanjeevani Settlements</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&amp;family=Manrope:wght@200..800&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-secondary-container": "#54647a",
+                "surface": "#faf8ff",
+                "surface-container-low": "#f2f3ff",
+                "tertiary": "#525657",
+                "tertiary-container": "#6b6e70",
+                "on-primary-fixed": "#00174b",
+                "on-error": "#ffffff",
+                "tertiary-fixed-dim": "#c4c7c9",
+                "tertiary-fixed": "#e0e3e5",
+                "on-surface": "#131b2e",
+                "surface-container-lowest": "#ffffff",
+                "inverse-on-surface": "#eef0ff",
+                "background": "#faf8ff",
+                "error": "#ba1a1a",
+                "on-error-container": "#93000a",
+                "surface-container": "#eaedff",
+                "primary-fixed": "#dbe1ff",
+                "on-primary": "#ffffff",
+                "error-container": "#ffdad6",
+                "on-surface-variant": "#434655",
+                "inverse-surface": "#283044",
+                "on-secondary-fixed-variant": "#38485d",
+                "on-primary-fixed-variant": "#003ea8",
+                "surface-dim": "#d2d9f4",
+                "outline-variant": "#c3c6d7",
+                "on-tertiary-fixed": "#191c1e",
+                "secondary": "#505f76",
+                "primary-fixed-dim": "#b4c5ff",
+                "outline": "#737686",
+                "secondary-container": "#d0e1fb",
+                "on-tertiary": "#ffffff",
+                "surface-tint": "#0053db",
+                "surface-variant": "#dae2fd",
+                "surface-bright": "#faf8ff",
+                "secondary-fixed-dim": "#b7c8e1",
+                "primary-container": "#2563eb",
+                "on-background": "#131b2e",
+                "on-secondary-fixed": "#0b1c30",
+                "secondary-fixed": "#d3e4fe",
+                "on-tertiary-fixed-variant": "#444749",
+                "inverse-primary": "#b4c5ff",
+                "on-tertiary-container": "#eff1f3",
+                "primary": "#004ac6",
+                "on-primary-container": "#eeefff",
+                "surface-container-high": "#e2e7ff",
+                "on-secondary": "#ffffff",
+                "surface-container-highest": "#dae2fd"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.75rem",
+                "lg": "1rem",
+                "xl": "1.25rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "xl": "80px",
+                "sm": "12px",
+                "margin-mobile": "16px",
+                "lg": "48px",
+                "base": "8px",
+                "md": "24px",
+                "xs": "4px",
+                "gutter": "24px",
+                "margin-desktop": "64px"
+        },
+        "fontFamily": {
+                "body-md": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "body-sm": [
+                        "Inter"
+                ],
+                "headline-xl": [
+                        "Manrope"
+                ],
+                "headline-lg-mobile": [
+                        "Manrope"
+                ],
+                "headline-lg": [
+                        "Manrope"
+                ],
+                "mono-data": ["Inter"],
+                "mono-label": ["Inter"],
+                "display-sm": ["Manrope"],
+                "display-md": ["Manrope"],
+                "eyebrow": ["Inter"]
+        },
+        "fontSize": {
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.05em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-sm": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-xl": [
+                        "48px",
+                        {
+                                "lineHeight": "56px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "40px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "mono-data": ["14px", { "lineHeight": "20px", "fontWeight": "500" }],
+                "mono-label": ["11px", { "lineHeight": "14px", "fontWeight": "600" }],
+                "display-sm": ["20px", { "lineHeight": "24px", "letterSpacing": "0.02em", "fontWeight": "600" }],
+                "display-md": ["32px", { "lineHeight": "36px", "letterSpacing": "-0.01em", "fontWeight": "600" }],
+                "eyebrow": ["12px", { "lineHeight": "16px", "letterSpacing": "0.1em", "fontWeight": "700" }]
+        }
+},
+    },
+  }
+</script>
+<style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: inset 0 1px 0 0 rgba(255,255,255,1);
+        }
+        
+        .pulse-teal {
+            animation: pulseTeal 2s infinite;
+        }
+        
+        @keyframes pulseTeal {
+            0% { box-shadow: 0 0 0 0 rgba(0, 74, 198, 0.4); }
+            70% { box-shadow: 0 0 0 6px rgba(0, 74, 198, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(0, 74, 198, 0); }
+        }
+        
+        /* Hide scrollbar for clean aesthetic */
+        ::-webkit-scrollbar { width: 0px; background: transparent; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen font-body-sm font-sans antialiased overflow-x-hidden pt-12 md:pl-[240px]">
+<!-- TopNavBar (Shared Component) -->
+<header class="bg-surface text-primary border-b border-outline-variant fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-12">
+<div class="flex items-center gap-6">
+<h1 class="font-display-sm text-display-sm font-bold tracking-tighter">LOGISTICS OPS</h1>
+<!-- Nav hidden on mobile -->
+<nav class="hidden md:flex gap-4 h-full items-end">
+<a class="font-eyebrow text-eyebrow text-on-surface-variant hover:bg-secondary-container transition-colors px-2 py-1 h-full flex items-center" href="#">Dashboard</a>
+<a class="font-eyebrow text-eyebrow text-on-surface-variant hover:bg-secondary-container transition-colors px-2 py-1 h-full flex items-center" href="#">Global Map</a>
+<a class="font-eyebrow text-eyebrow text-primary border-b-2 border-primary pb-1 px-2 py-1 h-full flex items-center opacity-80 transition-all duration-150" href="#">Settlements</a>
+<a class="font-eyebrow text-eyebrow text-on-surface-variant hover:bg-secondary-container transition-colors px-2 py-1 h-full flex items-center" href="#">Inventory</a>
+</nav>
+</div>
+<div class="flex items-center gap-4">
+<button class="text-on-surface-variant hover:bg-secondary-container transition-colors rounded-full p-1 flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-secondary-container transition-colors rounded-full p-1 flex items-center justify-center">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 0;">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-secondary-container overflow-hidden ml-2 border border-outline-variant">
+<img alt="Agent Profile" class="object-cover w-full h-full" data-alt="Close up professional headshot of a logistics operations manager in a high-tech control room environment, sharp focus, clinical lighting, cool color tones, modern corporate aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDaW5tClt6Ly19xG3CIJyKGqCTfY1Z4ALnPJCXbbuIfwME7QDirQ8C9sVWxPpGHwQOH5lekO6EComRJmau0GGOuMer6qz6DRaIJvObBuzggRr4D5ntchur3mj1VgLsb8kJEjlpHJu8fo17Zd5_XKZkPcQUlrjAoqEvm1hCl6y5_0O-0iv9cVJvz1TjTyXC63_AHwpH-Zsf5JOfVP8g0vSv5BiLow7_Onfa3BN5sNt16U2FWkUwtntMr"/>
+</div>
+</div>
+</header>
+<!-- SideNavBar (Shared Component - Desktop Only) -->
+<aside class="hidden md:flex bg-surface-container-lowest text-primary fixed left-0 top-12 h-[calc(100vh-48px)] w-[240px] border-r border-outline-variant flex-col z-40">
+<div class="p-4 border-b border-outline-variant">
+<h2 class="font-display-md text-display-md font-bold text-primary">HQ Console</h2>
+<p class="font-eyebrow text-eyebrow text-on-surface-variant">Terminal 04</p>
+</div>
+<div class="p-4">
+<button class="w-full bg-primary text-on-primary font-eyebrow text-eyebrow py-2 px-4 rounded hover:bg-primary-container hover:text-on-primary-container transition-colors uppercase">New Dispatch</button>
+</div>
+<nav class="flex-1 flex flex-col gap-1 px-2 mt-4 overflow-y-auto">
+<a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined">lan</span>
+<span class="font-eyebrow text-eyebrow">Operations</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+<span class="font-eyebrow text-eyebrow">Fleet</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined">route</span>
+<span class="font-eyebrow text-eyebrow">Routes</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-xl text-primary font-bold border-r-4 border-primary bg-surface-container-high scale-95 transition-transform" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">monitoring</span>
+<span class="font-eyebrow text-eyebrow">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-eyebrow text-eyebrow">Archive</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-outline-variant p-2">
+<a class="flex items-center gap-3 px-3 py-2 rounded text-on-surface-variant font-medium hover:bg-surface-container transition-all" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-eyebrow text-eyebrow">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="p-gutter md:p-margin-desktop mx-auto max-w-7xl">
+<!-- Header Section -->
+<div class="mb-8">
+<h2 class="font-display-md text-display-md font-bold mb-2 text-on-surface">Settlement Batches</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Review and execute monthly financial clearances across all terminals.</p>
+</div>
+<!-- Top Row: Stat Cards -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant p-4 rounded-xl">
+<p class="font-eyebrow text-eyebrow text-on-surface-variant uppercase mb-2">Outstanding</p>
+<p class="font-mono-data text-mono-data text-2xl font-bold text-on-surface">₹1.2Cr</p>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant p-4 rounded-xl">
+<p class="font-eyebrow text-eyebrow text-on-surface-variant uppercase mb-2">Batches</p>
+<p class="font-mono-data text-mono-data text-2xl font-bold text-on-surface">12</p>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest border border-outline-variant p-4 rounded-xl">
+<p class="font-eyebrow text-eyebrow text-on-surface-variant uppercase mb-2">Invoice Lines</p>
+<p class="font-mono-data text-mono-data text-2xl font-bold text-on-surface">442</p>
+</div>
+<!-- Card 4 -->
+<div class="bg-surface-container-lowest border border-outline-variant p-4 rounded-xl">
+<p class="font-eyebrow text-eyebrow text-on-surface-variant uppercase mb-2">Confirmed</p>
+<p class="font-mono-data text-mono-data text-2xl font-bold text-on-surface text-primary">8</p>
+</div>
+</div>
+<!-- Main Section: Vertical List -->
+<div class="flex flex-col gap-4">
+<!-- Row 1 (Executing) -->
+<div class="bg-surface-container-lowest border border-outline-variant relative overflow-hidden group hover:bg-[#fcfdfd] transition-colors cursor-pointer rounded-xl" onclick="toggleDetails('row1-details')">
+<!-- Status Stripe -->
+<div class="absolute left-0 top-0 bottom-0 w-2 bg-primary pulse-teal z-10 rounded-l-xl"></div>
+<!-- Main Row Content -->
+<div class="flex flex-col md:flex-row md:items-center justify-between p-4 pl-8 gap-4">
+<div class="flex items-center gap-4 min-w-[200px]">
+<span class="font-mono-data text-mono-data text-on-surface font-bold">AUG 2026</span>
+<span class="px-2 py-1 bg-primary-container text-on-primary-container font-eyebrow text-eyebrow uppercase rounded border border-primary">Executing</span>
+</div>
+<div class="flex items-center justify-between w-full md:w-auto md:justify-end gap-6">
+<div class="text-right">
+<p class="font-mono-data text-mono-data text-xl font-bold text-on-surface">₹18,45,000</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">12 invoices</p>
+</div>
+<button class="bg-primary text-on-primary font-eyebrow text-eyebrow px-4 py-2 rounded uppercase tracking-wider hover:opacity-90 transition-opacity whitespace-nowrap" onclick="event.stopPropagation();">
+                            View Progress
+                        </button>
+</div>
+</div>
+<!-- Expanded Detail (Hidden by default) -->
+<div class="hidden border-t border-outline-variant bg-surface p-4 pl-8" id="row1-details">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr>
+<th class="font-mono-label text-mono-label text-on-surface-variant pb-2 border-b border-outline-variant">INV ID</th>
+<th class="font-mono-label text-mono-label text-on-surface-variant pb-2 border-b border-outline-variant">VENDOR</th>
+<th class="font-mono-label text-mono-label text-on-surface-variant pb-2 border-b border-outline-variant">DATE</th>
+<th class="font-mono-label text-mono-label text-on-surface-variant pb-2 border-b border-outline-variant text-right">AMOUNT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant">#INV-8832</td>
+<td class="font-body-sm text-body-sm py-3 border-b border-outline-variant">Alpha Freight Co.</td>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant">12 AUG 26</td>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant text-right">₹4,20,000</td>
+</tr>
+<tr>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant">#INV-8845</td>
+<td class="font-body-sm text-body-sm py-3 border-b border-outline-variant">Global Logistics</td>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant">14 AUG 26</td>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant text-right">₹14,25,000</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Row 2 (Pending) -->
+<div class="bg-surface-container-lowest border border-outline-variant relative overflow-hidden group hover:bg-[#fcfdfd] transition-colors cursor-pointer rounded-xl" onclick="toggleDetails('row2-details')">
+<div class="absolute left-0 top-0 bottom-0 w-2 bg-tertiary-container z-10 rounded-l-xl"></div>
+<div class="flex flex-col md:flex-row md:items-center justify-between p-4 pl-8 gap-4">
+<div class="flex items-center gap-4 min-w-[200px]">
+<span class="font-mono-data text-mono-data text-on-surface font-bold">SEP 2026</span>
+<span class="px-2 py-1 bg-tertiary-fixed text-on-tertiary-fixed font-eyebrow text-eyebrow uppercase rounded border border-tertiary-fixed-dim">Pending</span>
+</div>
+<div class="flex items-center justify-between w-full md:w-auto md:justify-end gap-6">
+<div class="text-right">
+<p class="font-mono-data text-mono-data text-xl font-bold text-on-surface">₹24,10,500</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">18 invoices</p>
+</div>
+<button class="border border-outline text-on-surface font-eyebrow text-eyebrow px-4 py-2 rounded uppercase tracking-wider hover:bg-surface-container transition-colors whitespace-nowrap" onclick="event.stopPropagation();">
+                            Execute
+                        </button>
+</div>
+</div>
+<div class="hidden border-t border-outline-variant bg-surface p-4 pl-8" id="row2-details">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr>
+<th class="font-mono-label text-mono-label text-on-surface-variant pb-2 border-b border-outline-variant">INV ID</th>
+<th class="font-mono-label text-mono-label text-on-surface-variant pb-2 border-b border-outline-variant">VENDOR</th>
+<th class="font-mono-label text-mono-label text-on-surface-variant pb-2 border-b border-outline-variant">DATE</th>
+<th class="font-mono-label text-mono-label text-on-surface-variant pb-2 border-b border-outline-variant text-right">AMOUNT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant">#INV-8901</td>
+<td class="font-body-sm text-body-sm py-3 border-b border-outline-variant">Omega Transport</td>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant">02 SEP 26</td>
+<td class="font-mono-data text-mono-data py-3 border-b border-outline-variant text-right">₹12,00,000</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Row 3 (Confirmed) -->
+<div class="bg-surface-container-lowest border border-outline-variant relative overflow-hidden group hover:bg-[#fcfdfd] transition-colors cursor-pointer rounded-xl" onclick="toggleDetails('row3-details')">
+<div class="absolute left-0 top-0 bottom-0 w-2 bg-secondary z-10 rounded-l-xl"></div>
+<div class="flex flex-col md:flex-row md:items-center justify-between p-4 pl-8 gap-4">
+<div class="flex items-center gap-4 min-w-[200px]">
+<span class="font-mono-data text-mono-data text-on-surface-variant">JUL 2026</span>
+<span class="px-2 py-1 bg-surface-variant text-on-surface-variant font-eyebrow text-eyebrow uppercase rounded border border-outline-variant">Confirmed</span>
+</div>
+<div class="flex items-center justify-between w-full md:w-auto md:justify-end gap-6">
+<div class="text-right opacity-70">
+<p class="font-mono-data text-mono-data text-xl font-bold text-on-surface">₹9,80,000</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant">8 invoices</p>
+</div>
+<button class="border border-outline-variant text-on-surface-variant font-eyebrow text-eyebrow px-4 py-2 rounded uppercase tracking-wider hover:bg-surface-container transition-colors whitespace-nowrap" onclick="event.stopPropagation();">
+                            View Receipt
+                        </button>
+</div>
+</div>
+<div class="hidden border-t border-outline-variant bg-surface p-4 pl-8" id="row3-details">
+<p class="font-body-sm text-body-sm text-on-surface-variant italic py-4">Settlement confirmed and archived. Details available in long-term storage.</p>
+</div>
+</div>
+</div>
+</main>
+<script>
+        function toggleDetails(id) {
+            const el = document.getElementById(id);
+            if (el.classList.contains('hidden')) {
+                el.classList.remove('hidden');
+            } else {
+                el.classList.add('hidden');
+            }
+        }
+    </script>
+</body></html>

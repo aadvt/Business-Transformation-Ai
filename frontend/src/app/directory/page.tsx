@@ -24,45 +24,58 @@ const LANGUAGES: { code: string; label: string }[] = [
   { code: "gu", label: "Gujarati" },
 ];
 
+const FIELD_CLASS =
+  "w-full rounded-md border border-line bg-surface px-3 py-2 text-[13px] text-ink transition-colors duration-200 placeholder:text-ink-faint hover:border-line-strong focus:border-accent";
+
+const FIELD_LABEL = "mb-1.5 block text-[12.5px] font-medium text-ink-muted";
+
 function VendorCard({ vendor }: { vendor: PublicVendor }) {
   return (
     <Link
       href={`/directory/${vendor.id}`}
-      className="block rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md"
+      className="panel panel-interactive block p-5 outline-offset-2"
     >
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[14px] font-semibold text-slate-900">{vendor.name}</p>
-          <p className="text-[12.5px] text-slate-500">{vendor.category}</p>
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="font-display text-[15px] font-bold tracking-[-0.01em] text-ink">{vendor.name}</p>
+          <p className="text-[12.5px] text-ink-muted">{vendor.category}</p>
         </div>
         <VerificationBadge verified={vendor.verified} gstinVerified={vendor.gstin_verified} />
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-slate-500">
-        <span className="inline-flex items-center gap-1">
-          <MapPin size={12} />
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[12.5px] text-ink-muted">
+        <span className="inline-flex items-center gap-1.5">
+          <MapPin size={13} className="text-ink-faint" />
           {vendor.city}, {vendor.state}
-          {vendor.distance_km !== null && ` · ${vendor.distance_km.toFixed(0)} km`}
+          {vendor.distance_km !== null && (
+            <>
+              {" · "}
+              <span className="numeric">{vendor.distance_km.toFixed(0)} km</span>
+            </>
+          )}
         </span>
-        <span className="inline-flex items-center gap-1">
-          <Clock size={12} />
-          {vendor.lead_time_days}-day lead time
+        <span className="inline-flex items-center gap-1.5">
+          <Clock size={13} className="text-ink-faint" />
+          <span className="numeric">{vendor.lead_time_days}</span>-day lead time
         </span>
-        <span className="inline-flex items-center gap-1">
-          <Star size={12} />
-          {vendor.reliability_score_0_100}/100 reliability
+        <span className="inline-flex items-center gap-1.5">
+          <Star size={13} className="text-ink-faint" />
+          <span className="numeric">{vendor.reliability_score_0_100}/100</span> reliability
         </span>
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-        <div className="flex flex-wrap gap-1">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
+        <div className="flex flex-wrap gap-1.5">
           {vendor.languages.map((l) => (
-            <span key={l} className="rounded-sm bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 uppercase">
+            <span
+              key={l}
+              className="rounded-full bg-surface-3 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-ink-muted uppercase"
+            >
               {l}
             </span>
           ))}
         </div>
-        <span className="font-mono text-[11px] text-slate-400">{vendor.gstin_masked}</span>
+        <span className="numeric text-[11px] text-ink-faint">{vendor.gstin_masked}</span>
       </div>
     </Link>
   );
@@ -98,17 +111,13 @@ export default function DirectorySearchPage() {
   }
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-[240px_minmax(0,1fr)]">
-      <aside className="h-fit rounded-xl border border-slate-200 bg-white p-4">
-        <h2 className="mb-3 text-[12px] font-semibold tracking-wide text-slate-400 uppercase">Filters</h2>
+    <div className="grid grid-cols-1 gap-6 md:grid-cols-[248px_minmax(0,1fr)]">
+      <aside className="panel h-fit p-5">
+        <h2 className="eyebrow mb-4">Filters</h2>
 
         <div className="mb-4">
-          <label className="mb-1 block text-[12.5px] font-medium text-slate-700">Category</label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800 outline-none focus:border-slate-400"
-          >
+          <label className={FIELD_LABEL}>Category</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value)} className={FIELD_CLASS}>
             <option value="">All categories</option>
             {CATEGORIES.map((c) => (
               <option key={c} value={c}>
@@ -120,58 +129,59 @@ export default function DirectorySearchPage() {
 
         <div className="mb-4 flex gap-2">
           <div className="flex-1">
-            <label className="mb-1 block text-[12.5px] font-medium text-slate-700">Pincode</label>
+            <label className={FIELD_LABEL}>Pincode</label>
             <input
               value={pincode}
               onChange={(e) => setPincode(e.target.value)}
               placeholder="411001"
-              className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800 outline-none focus:border-slate-400"
+              className={`${FIELD_CLASS} numeric`}
             />
           </div>
           <div className="w-20">
-            <label className="mb-1 block text-[12.5px] font-medium text-slate-700">Radius</label>
+            <label className={FIELD_LABEL}>Radius</label>
             <input
               type="number"
               value={radiusKm}
               onChange={(e) => setRadiusKm(e.target.value)}
               placeholder="km"
-              className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800 outline-none focus:border-slate-400"
+              className={`${FIELD_CLASS} numeric`}
             />
           </div>
         </div>
 
         <div className="mb-4">
-          <label className="mb-1 block text-[12.5px] font-medium text-slate-700">Max lead time (days)</label>
+          <label className={FIELD_LABEL}>Max lead time (days)</label>
           <input
             type="number"
             value={maxLeadTime}
             onChange={(e) => setMaxLeadTime(e.target.value)}
-            className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800 outline-none focus:border-slate-400"
+            className={`${FIELD_CLASS} numeric`}
           />
         </div>
 
         <div className="mb-4">
-          <label className="mb-1 block text-[12.5px] font-medium text-slate-700">Min capacity (units/mo)</label>
+          <label className={FIELD_LABEL}>Min capacity (units/mo)</label>
           <input
             type="number"
             value={minCapacity}
             onChange={(e) => setMinCapacity(e.target.value)}
-            className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[13px] text-slate-800 outline-none focus:border-slate-400"
+            className={`${FIELD_CLASS} numeric`}
           />
         </div>
 
         <div className="mb-4">
-          <label className="mb-1.5 block text-[12.5px] font-medium text-slate-700">Languages</label>
+          <label className={FIELD_LABEL}>Languages</label>
           <div className="flex flex-wrap gap-1.5">
             {LANGUAGES.map((l) => (
               <button
                 key={l.code}
                 type="button"
                 onClick={() => toggleLanguage(l.code)}
-                className={`rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+                aria-pressed={languages.includes(l.code)}
+                className={`rounded-full px-3 py-1.5 text-[11.5px] font-medium outline-offset-2 transition-colors duration-200 ${
                   languages.includes(l.code)
-                    ? "border-slate-900 bg-slate-900 text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"
+                    ? "bg-accent text-accent-ink hover:bg-accent-bright"
+                    : "bg-surface-2 text-ink-muted hover:bg-surface-3 hover:text-ink"
                 }`}
               >
                 {l.label}
@@ -180,44 +190,53 @@ export default function DirectorySearchPage() {
           </div>
         </div>
 
-        <label className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-slate-700">
+        <label className="flex cursor-pointer items-center gap-2 rounded-sm text-[13px] font-medium text-ink-muted transition-colors duration-200 hover:text-ink">
           <input
             type="checkbox"
             checked={verifiedOnly}
             onChange={(e) => setVerifiedOnly(e.target.checked)}
-            className="size-4 rounded border-slate-300 accent-slate-900"
+            className="size-4 rounded-sm border-line-strong accent-accent"
           />
           Verified only
         </label>
       </aside>
 
       <section>
-        <div className="mb-4 flex items-center justify-between">
-          <h1 className="text-[19px] font-semibold tracking-tight text-slate-900">Find a vendor</h1>
-          <span className="text-[13px] text-slate-500">{isLoading ? "Searching…" : `${data?.total ?? 0} vendors`}</span>
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <h1 className="font-display text-[30px] leading-[1.15] font-bold tracking-[-0.02em] text-ink">
+            Find a vendor
+          </h1>
+          <span className="text-[13px] text-ink-muted">
+            {isLoading ? "Searching…" : <><span className="numeric">{data?.total ?? 0}</span> vendors</>}
+          </span>
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-32 animate-pulse rounded-xl border border-slate-200 bg-white" />
+              <div key={i} className="skeleton h-36 rounded-lg" />
             ))}
           </div>
         ) : (data?.items.length ?? 0) === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center">
-            <SearchIcon size={22} className="mx-auto mb-3 text-slate-300" />
-            <p className="mb-1 text-[14px] font-medium text-slate-700">No vendors match these filters yet</p>
-            <p className="mx-auto max-w-sm text-[13px] text-slate-500">
+          <div className="rounded-lg border border-dashed border-line-strong bg-surface px-6 py-12 text-center">
+            <span className="mx-auto mb-4 flex size-11 items-center justify-center rounded-md bg-surface-3 text-ink-faint">
+              <SearchIcon size={20} />
+            </span>
+            <p className="font-display mb-1.5 text-[15px] font-bold text-ink">No vendors match these filters yet</p>
+            <p className="mx-auto max-w-sm text-[13px] leading-relaxed text-ink-muted">
               This directory only lists vendors who&apos;ve self-registered and passed our GSTIN + Udyam checks —
               try widening your filters, or{" "}
-              <Link href="/directory/register" className="font-medium text-slate-900 underline underline-offset-2">
+              <Link
+                href="/directory/register"
+                className="rounded-sm font-medium text-accent underline underline-offset-2 outline-offset-2 transition-colors duration-200 hover:text-accent-bright"
+              >
                 invite a vendor to list themselves
               </Link>
               .
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             {data!.items.map((vendor) => (
               <VendorCard key={vendor.id} vendor={vendor} />
             ))}

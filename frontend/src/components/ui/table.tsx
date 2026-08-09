@@ -4,6 +4,8 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+/* Dense by design: eyebrow column heads, hairline separators, and a tonal
+   row hover instead of zebra striping. */
 function Table({ className, ...props }: React.ComponentProps<"table">) {
   return (
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
@@ -34,7 +36,10 @@ function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
   return (
     <tr
       data-slot="table-row"
-      className={cn("row-hover border-b border-line data-[state=selected]:bg-surface-2", className)}
+      className={cn(
+        "row-hover border-b border-line data-[state=selected]:bg-accent-dim/60",
+        className
+      )}
       {...props}
     />
   );
@@ -44,7 +49,10 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
   return (
     <th
       data-slot="table-head"
-      className={cn("eyebrow h-9 px-3 text-left align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0", className)}
+      className={cn(
+        "eyebrow h-9 px-3 text-left align-middle whitespace-nowrap first:pl-4 last:pr-4 [&:has([role=checkbox])]:pr-0",
+        className
+      )}
       {...props}
     />
   );
@@ -54,7 +62,10 @@ function TableCell({ className, ...props }: React.ComponentProps<"td">) {
   return (
     <td
       data-slot="table-cell"
-      className={cn("px-3 py-2 align-middle whitespace-nowrap text-ink [&:has([role=checkbox])]:pr-0", className)}
+      className={cn(
+        "px-3 py-2.5 align-middle whitespace-nowrap text-ink first:pl-4 last:pr-4 [&:has([role=checkbox])]:pr-0",
+        className
+      )}
       {...props}
     />
   );

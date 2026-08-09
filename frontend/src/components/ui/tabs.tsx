@@ -4,6 +4,9 @@ import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 
 import { cn } from "@/lib/utils";
 
+/* Segmented control rather than an underline rule: the selected tab is a
+   raised white pill on a tonal track, which keeps the whole console reading
+   as layers of surface instead of a grid of lines. */
 function Tabs({
   className,
   orientation = "horizontal",
@@ -23,7 +26,7 @@ function TabsList({ className, ...props }: TabsPrimitive.List.Props) {
   return (
     <TabsPrimitive.List
       data-slot="tabs-list"
-      className={cn("relative inline-flex w-fit items-center gap-4 border-b border-line", className)}
+      className={cn("relative inline-flex w-fit items-center gap-1 rounded-md bg-surface-2 p-1", className)}
       {...props}
     />
   );
@@ -34,7 +37,13 @@ function TabsTrigger({ className, ...props }: TabsPrimitive.Tab.Props) {
     <TabsPrimitive.Tab
       data-slot="tabs-trigger"
       className={cn(
-        "relative -mb-px inline-flex items-center gap-1.5 border-b-2 border-transparent px-0.5 py-2 text-[13px] font-medium whitespace-nowrap text-ink-muted outline-none transition-colors data-active:border-accent data-active:text-ink hover:text-ink disabled:pointer-events-none disabled:opacity-40 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
+        "relative inline-flex cursor-pointer items-center gap-1.5 rounded-sm px-3 py-1.5 text-[13px] font-medium whitespace-nowrap text-ink-muted outline-none",
+        "transition-[background-color,color,box-shadow] duration-200 ease-out",
+        "hover:text-ink",
+        "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+        "data-active:bg-surface data-active:text-accent data-active:shadow-panel",
+        "disabled:pointer-events-none disabled:opacity-45 data-disabled:pointer-events-none data-disabled:opacity-45",
+        "[&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0",
         className
       )}
       {...props}

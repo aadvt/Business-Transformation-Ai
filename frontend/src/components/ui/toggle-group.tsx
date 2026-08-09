@@ -9,7 +9,7 @@ function ToggleGroup<Value extends string>({ className, ...props }: ToggleGroupP
   return (
     <ToggleGroupPrimitive
       data-slot="toggle-group"
-      className={cn("inline-flex items-center gap-1 rounded-md border border-line bg-surface-2 p-1", className)}
+      className={cn("inline-flex items-center gap-1 rounded-full bg-surface-2 p-1", className)}
       {...props}
     />
   );
@@ -20,7 +20,12 @@ function ToggleGroupItem<Value extends string>({ className, ...props }: TogglePr
     <TogglePrimitive
       data-slot="toggle-group-item"
       className={cn(
-        "cursor-pointer rounded-sm px-2.5 py-1 text-[12px] font-medium text-ink-muted transition-colors duration-100 hover:text-ink data-pressed:bg-accent data-pressed:text-accent-ink",
+        "cursor-pointer rounded-full px-3 py-1.5 text-[12px] font-medium text-ink-muted outline-none",
+        "transition-[background-color,color,box-shadow] duration-200 ease-out",
+        "hover:bg-surface-3 hover:text-ink",
+        "focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg",
+        "data-pressed:bg-accent data-pressed:text-accent-ink data-pressed:shadow-panel data-pressed:hover:bg-[color-mix(in_srgb,var(--color-accent)_88%,black)]",
+        "disabled:pointer-events-none disabled:opacity-45 data-disabled:pointer-events-none data-disabled:opacity-45",
         className
       )}
       {...props}

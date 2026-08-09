@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, Layers, Wallet } from "lucide-react";
+import { useId, useState } from "react";
+import { ChevronDown, Wallet } from "lucide-react";
+import clsx from "clsx";
 import { toast } from "sonner";
 import { useConfirmSettlementBatch, useExecuteSettlementBatch, useSettlementBatches } from "@/lib/queries";
 import { formatPaiseFull } from "@/lib/format";
-import StatTile from "@/components/StatTile";
-import TileGrid from "@/components/ui/TileGrid";
 import Skeleton from "@/components/ui/skeleton";
 import Badge from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,11 +29,29 @@ const STATUS_LABEL: Record<string, string> = {
   CONFIRMED: "Confirmed",
 };
 
-const STATUS_TONE: Record<string, "idle" | "progress" | "positive" | "accent"> = {
-  PENDING: "idle",
-  EXECUTING: "progress",
+const STATUS_TONE: Record<string, "idle" | "progress" | "positive" | "accent" | "neutral"> = {
+  PENDING: "neutral",
+  EXECUTING: "accent",
   CONFIRMED: "positive",
 };
+
+/** Compact metric card: micro-caps label over the figure, nothing else. */
+function SummaryTile({ label, value, tone = "default" }: { label: string; value: string; tone?: "default" | "positive" }) {
+  return (
+    <div className="panel px-4 py-3.5">
+      <p className="eyebrow">{label}</p>
+      <p
+        className={clsx(
+          "numeric mt-2.5 text-[22px] leading-none font-semibold tracking-tight",
+          tone === "positive" ? "text-success" : "text-ink"
+        )}
+        data-numeric
+      >
+        {value}
+      </p>
+    </div>
+  );
+}
 
 interface BatchCardProps {
   batch: SettlementBatch;
@@ -45,20 +62,31 @@ function BatchCard({ batch, onConfirmed }: BatchCardProps) {
   const confirm = useConfirmSettlementBatch();
   const execute = useExecuteSettlementBatch();
   const [confirmingExecute, setConfirmingExecute] = useState(false);
+  const [showLines, setShowLines] = useState(false);
+  const linesId = useId();
 
   return (
-    <div className="panel-flush mb-3">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2.5">
-        <div className="flex items-center gap-3">
-          <span className="eyebrow">Batch</span>
-          <span className="numeric text-[13px] font-medium text-ink">{batch.month}</span>
-          <span className="numeric text-[15px] font-medium text-accent">{batch.total_display}</span>
-          <span className="text-[11px] text-ink-faint">
-            {batch.lines.length} line{batch.lines.length === 1 ? "" : "s"}
+    <div className="panel-flush">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-4">
+        <div className="flex min-w-[11rem] flex-1 items-center gap-3">
+          <span className="numeric text-[13px] font-semibold text-ink" data-numeric>
+            {batch.month}
           </span>
+          <Badge tone={STATUS_TONE[batch.status] ?? "neutral"} className="rounded-full px-2 py-0.5">
+            {STATUS_LABEL[batch.status] ?? batch.status}
+          </Badge>
         </div>
-        <div className="flex items-center gap-2.5">
-          <Badge tone={STATUS_TONE[batch.status] ?? "idle"}>{STATUS_LABEL[batch.status] ?? batch.status}</Badge>
+
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="numeric text-[17px] leading-tight font-semibold text-ink" data-numeric>
+              {batch.total_display}
+            </p>
+            <p className="mt-0.5 text-[11px] text-ink-faint">
+              {batch.lines.length} line{batch.lines.length === 1 ? "" : "s"}
+            </p>
+          </div>
+
           {batch.status === "PENDING" && (
             <Button
               size="sm"
@@ -105,29 +133,44 @@ function BatchCard({ batch, onConfirmed }: BatchCardProps) {
               </DialogContent>
             </Dialog>
           )}
+
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setShowLines((v) => !v)}
+            aria-expanded={showLines}
+            aria-controls={linesId}
+            aria-label={showLines ? `Hide invoice lines for ${batch.month}` : `Show invoice lines for ${batch.month}`}
+          >
+            <ChevronDown size={14} className={clsx("transition-transform duration-200", showLines && "rotate-180")} />
+          </Button>
         </div>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Vendor</TableHead>
-            <TableHead>Invoice</TableHead>
-            <TableHead>Due</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {batch.lines.map((line) => (
-            <TableRow key={line.invoice_id}>
-              <TableCell className="font-medium">{line.vendor.name}</TableCell>
-              <TableCell className="numeric text-xs text-ink-muted">{line.invoice_id}</TableCell>
-              <TableCell className="numeric text-xs text-ink-muted">{line.due_date}</TableCell>
-              <TableCell className="numeric text-right">{line.amount_display}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+      {showLines && (
+        <div id={linesId} className="border-t border-line">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Vendor</TableHead>
+                <TableHead>Invoice</TableHead>
+                <TableHead>Due</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {batch.lines.map((line) => (
+                <TableRow key={line.invoice_id}>
+                  <TableCell className="font-medium">{line.vendor.name}</TableCell>
+                  <TableCell className="numeric text-xs text-ink-muted">{line.invoice_id}</TableCell>
+                  <TableCell className="numeric text-xs text-ink-muted">{line.due_date}</TableCell>
+                  <TableCell className="numeric text-right">{line.amount_display}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
     </div>
   );
 }
@@ -162,12 +205,12 @@ export default function SettlementPage() {
       {isLoading ? (
         <Skeleton className="mb-6 h-[86px]" />
       ) : (
-        <TileGrid minWidth={180}>
-          <StatTile label="Outstanding" value={formatPaiseFull(outstandingPaise)} icon={Wallet} tone="alert" />
-          <StatTile label="Batches" value={String(batches.length)} icon={Layers} />
-          <StatTile label="Invoice lines" value={String(lineCount)} icon={Layers} />
-          <StatTile label="Confirmed" value={String(confirmedCount)} icon={CheckCircle2} tone="positive" />
-        </TileGrid>
+        <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <SummaryTile label="Outstanding" value={formatPaiseFull(outstandingPaise)} />
+          <SummaryTile label="Batches" value={String(batches.length)} />
+          <SummaryTile label="Invoice lines" value={String(lineCount)} />
+          <SummaryTile label="Confirmed" value={String(confirmedCount)} tone="positive" />
+        </div>
       )}
 
       <section>
@@ -177,7 +220,11 @@ export default function SettlementPage() {
         ) : batches.length === 0 ? (
           <EmptyState>No settlement batches yet.</EmptyState>
         ) : (
-          batches.map((batch) => <BatchCard key={batch.id} batch={batch} onConfirmed={handleConfirmed} />)
+          <div className="flex flex-col gap-3">
+            {batches.map((batch) => (
+              <BatchCard key={batch.id} batch={batch} onConfirmed={handleConfirmed} />
+            ))}
+          </div>
         )}
       </section>
     </div>

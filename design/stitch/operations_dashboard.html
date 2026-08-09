@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sanjeevani - Main Operations Dashboard</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400..700;1,400..700&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        "colors": {
+                "on-secondary-container": "#54647a",
+                "surface": "#faf8ff",
+                "surface-container-low": "#f2f3ff",
+                "tertiary": "#525657",
+                "tertiary-container": "#6b6e70",
+                "on-primary-fixed": "#00174b",
+                "on-error": "#ffffff",
+                "tertiary-fixed-dim": "#c4c7c9",
+                "tertiary-fixed": "#e0e3e5",
+                "on-surface": "#131b2e",
+                "surface-container-lowest": "#ffffff",
+                "inverse-on-surface": "#eef0ff",
+                "background": "#faf8ff",
+                "error": "#ba1a1a",
+                "on-error-container": "#93000a",
+                "surface-container": "#eaedff",
+                "primary-fixed": "#dbe1ff",
+                "on-primary": "#ffffff",
+                "error-container": "#ffdad6",
+                "on-surface-variant": "#434655",
+                "inverse-surface": "#283044",
+                "on-secondary-fixed-variant": "#38485d",
+                "on-primary-fixed-variant": "#003ea8",
+                "surface-dim": "#d2d9f4",
+                "outline-variant": "#c3c6d7",
+                "on-tertiary-fixed": "#191c1e",
+                "secondary": "#505f76",
+                "primary-fixed-dim": "#b4c5ff",
+                "outline": "#737686",
+                "secondary-container": "#d0e1fb",
+                "on-tertiary": "#ffffff",
+                "surface-tint": "#0053db",
+                "surface-variant": "#dae2fd",
+                "surface-bright": "#faf8ff",
+                "secondary-fixed-dim": "#b7c8e1",
+                "primary-container": "#2563eb",
+                "on-background": "#131b2e",
+                "on-secondary-fixed": "#0b1c30",
+                "secondary-fixed": "#d3e4fe",
+                "on-tertiary-fixed-variant": "#444749",
+                "inverse-primary": "#b4c5ff",
+                "on-tertiary-container": "#eff1f3",
+                "primary": "#004ac6",
+                "on-primary-container": "#eeefff",
+                "surface-container-high": "#e2e7ff",
+                "on-secondary": "#ffffff",
+                "surface-container-highest": "#dae2fd"
+        },
+        "borderRadius": {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
+        },
+        "spacing": {
+                "xl": "80px",
+                "sm": "12px",
+                "margin-mobile": "16px",
+                "lg": "48px",
+                "base": "8px",
+                "md": "24px",
+                "xs": "4px",
+                "gutter": "24px",
+                "margin-desktop": "64px"
+        },
+        "fontFamily": {
+                "body-md": [
+                        "Inter"
+                ],
+                "label-md": [
+                        "Inter"
+                ],
+                "body-sm": [
+                        "Inter"
+                ],
+                "headline-xl": [
+                        "Manrope"
+                ],
+                "headline-lg-mobile": [
+                        "Manrope"
+                ],
+                "headline-lg": [
+                        "Manrope"
+                ]
+        },
+        "fontSize": {
+                "body-md": [
+                        "16px",
+                        {
+                                "lineHeight": "24px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "label-md": [
+                        "12px",
+                        {
+                                "lineHeight": "16px",
+                                "letterSpacing": "0.05em",
+                                "fontWeight": "600"
+                        }
+                ],
+                "body-sm": [
+                        "14px",
+                        {
+                                "lineHeight": "20px",
+                                "fontWeight": "400"
+                        }
+                ],
+                "headline-xl": [
+                        "48px",
+                        {
+                                "lineHeight": "56px",
+                                "letterSpacing": "-0.02em",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-lg-mobile": [
+                        "24px",
+                        {
+                                "lineHeight": "32px",
+                                "fontWeight": "700"
+                        }
+                ],
+                "headline-lg": [
+                        "32px",
+                        {
+                                "lineHeight": "40px",
+                                "letterSpacing": "-0.01em",
+                                "fontWeight": "700"
+                        }
+                ]
+        }
+},
+    },
+  }
+</script>
+<style>
+        /* Custom Animations for Map Overlays */
+        @keyframes drawRoute {
+            0% { stroke-dashoffset: 1000; }
+            100% { stroke-dashoffset: 0; }
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 0.8; }
+            70% { transform: scale(3); opacity: 0; }
+            100% { transform: scale(1); opacity: 0; }
+        }
+        .route-arc {
+            stroke-dasharray: 1000;
+            animation: drawRoute 3s ease-out forwards;
+        }
+        .pulse-ring {
+            animation: pulse 2s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+            transform-origin: center;
+        }
+        
+        /* Glassmorphism Utility */
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            background-color: rgba(250, 248, 255, 0.8); /* surface/80 */
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-surface overflow-hidden w-screen h-screen">
+<!-- Background Map Layer -->
+<div class="absolute inset-0 z-0 bg-cover bg-center opacity-80 grayscale mix-blend-multiply" data-alt="A highly detailed, desaturated top-down view of a world map styled like a high-tech logistics control interface. The map is minimalist, using subtle shades of light grey and off-white against a pristine white background. The geography is simplified and precise, emphasizing clean lines and data visualization readiness. The overall mood is clinical, authoritative, and perfectly suited for a high-density global supply chain operations dashboard." data-location="World Map" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBbFtPIZ5HZ8tgCA9zGgKklK4grU74opZ-976OVv5nZhJStJ6PvUXd1uZn9Bx1ruP9OXA3I_PdugP8KBXa5yGczcxcH6UobVo476JSM9UPjYg7Vugafe1KEQ4NqiSv-jDAo8uzXmM-thiSrJs1ydjspvWIOEE-vWMb2SlnJRRZaefBjDBFchoeupgGJXBJMpjFMOo0PHEEPHAIQgPH3Ak_0wjeAbByTgMtw_bNlUHJX6o2JfmzWq_hZ')">
+</div>
+<!-- Map Overlays (Markers & Routes) -->
+<svg class="absolute inset-0 z-10 w-full h-full pointer-events-none" preserveaspectratio="xMidYMid slice" viewbox="0 0 1440 900">
+<!-- Routes (Arcs) -->
+<path class="route-arc" d="M 720 450 Q 850 300 1050 350" fill="none" opacity="0.6" stroke="#004ac6" stroke-width="2"></path>
+<path class="route-arc" d="M 720 450 Q 600 200 400 250" fill="none" opacity="0.4" stroke="#c3c6d7" stroke-dasharray="4 4" stroke-width="1.5"></path>
+<path class="route-arc" d="M 720 450 Q 900 600 1100 550" fill="none" opacity="0.7" stroke="#ba1a1a" stroke-width="2"></path>
+<!-- Central Hub -->
+<circle cx="720" cy="450" fill="#004ac6" r="6"></circle>
+<circle cx="720" cy="450" fill="none" opacity="0.5" r="16" stroke="#004ac6" stroke-width="1"></circle>
+<!-- Vendor Markers -->
+<!-- Amber (Negotiating/Warning) -->
+<g transform="translate(1050, 350)">
+<circle cx="0" cy="0" fill="#6b6e70" r="5"></circle>
+</g>
+<!-- Teal (Settled/Good) -->
+<g transform="translate(400, 250)">
+<circle cx="0" cy="0" fill="#004ac6" r="4"></circle>
+</g>
+<!-- Red Disruption (Active/Critical) -->
+<g transform="translate(1100, 550)">
+<circle cx="0" cy="0" fill="#ba1a1a" r="5"></circle>
+<circle class="pulse-ring" cx="0" cy="0" fill="#ba1a1a" r="5"></circle>
+<circle class="pulse-ring" cx="0" cy="0" fill="#ba1a1a" r="5" style="animation-delay: 1s;"></circle>
+</g>
+</svg>
+<!-- TopNavBar (From JSON) -->
+<nav class="bg-surface text-primary font-headline-lg-mobile text-headline-lg-mobile border-b border-outline-variant fixed top-0 left-0 w-full z-50 flex justify-between items-center px-gutter h-16">
+<div class="flex items-center gap-6">
+<span class="font-headline-lg-mobile text-headline-lg-mobile font-bold text-primary tracking-tighter">LOGISTICS OPS</span>
+<div class="hidden md:flex items-center space-x-6 ml-8">
+<!-- Dashboard is active -->
+<a class="font-label-md text-label-md uppercase text-primary border-b-2 border-primary pb-1 hover:bg-secondary-container transition-colors" href="#">Dashboard</a>
+<a class="font-label-md text-label-md uppercase text-on-surface-variant hover:bg-secondary-container transition-colors" href="#">Global Map</a>
+<a class="font-label-md text-label-md uppercase text-on-surface-variant hover:bg-secondary-container transition-colors" href="#">Settlements</a>
+<a class="font-label-md text-label-md uppercase text-on-surface-variant hover:bg-secondary-container transition-colors" href="#">Inventory</a>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<!-- Search Bar on right (implied by JSON) -->
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-2 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+<input class="bg-surface-container-low border border-outline-variant rounded-xl pl-8 pr-3 py-2 font-body-sm text-body-sm focus:outline-none focus:border-primary w-48 transition-colors" placeholder="Search..." type="text"/>
+</div>
+<button class="text-on-surface-variant hover:bg-secondary-container p-2 rounded-xl transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+</button>
+<button class="text-on-surface-variant hover:bg-secondary-container p-2 rounded-xl transition-colors flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+</button>
+<div class="w-8 h-8 rounded-full bg-surface-variant overflow-hidden border border-outline-variant flex-shrink-0">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a logistics agent in a sharp, minimalist office setting. Bright, neutral lighting. The agent conveys calm authority. The style is hyper-realistic and clean, fitting a modern B2B application dashboard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuArBLIlz7iAWx9S_T8sgRbfaqhe-3Agy8QyD9UXBf1NnWj2lU1v7sh-IPQYm3rNM6op5dKQ5GtqPIJOTMadXjO65hGdSDOWbZagVfjpS3O3L07jSrmxQ5jjDHpxyYozXviX3iBFd41xWMEc_aHtlkaEd_jWwRO7dnmi6b0LI8MDhO-pG858w3221oEjRvDVhrOZ546dA44x52t7xAveN6Q4WgyFynbOXZ4PjQFu78cva1D_sv6Lt93g"/>
+</div>
+</div>
+</nav>
+<!-- SideNavBar (From JSON) -->
+<aside class="bg-surface-container-lowest text-primary font-headline-lg-mobile text-headline-lg-mobile docked fixed left-0 h-full w-[240px] border-r border-outline-variant fixed left-0 top-16 h-[calc(100vh-64px)] flex flex-col z-40">
+<div class="p-4 border-b border-outline-variant flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-primary-container text-on-primary-container flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined">hub</span>
+</div>
+<div>
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-primary leading-none">HQ Console</h2>
+<p class="font-label-md text-label-md text-on-surface-variant mt-1">Terminal 04</p>
+</div>
+</div>
+<div class="p-4">
+<button class="w-full bg-primary text-on-primary font-label-md text-label-md uppercase py-3 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-surface-tint transition-colors">
+<span class="material-symbols-outlined text-[16px]">add</span>
+                New Dispatch
+            </button>
+</div>
+<nav class="flex-1 overflow-y-auto py-2">
+<!-- Operations is active -->
+<a class="flex items-center gap-3 px-4 py-3 text-primary font-bold border-r-4 border-primary bg-secondary-fixed opacity-80 transition-transform scale-95 origin-left rounded-r-xl mr-2" href="#">
+<span class="material-symbols-outlined" data-weight="fill" style="font-variation-settings: 'FILL' 1;">lan</span>
+<span class="font-label-md text-label-md uppercase">Operations</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-medium hover:bg-surface-container transition-all rounded-r-xl mr-2" href="#">
+<span class="material-symbols-outlined">local_shipping</span>
+<span class="font-label-md text-label-md uppercase">Fleet</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-medium hover:bg-surface-container transition-all rounded-r-xl mr-2" href="#">
+<span class="material-symbols-outlined">route</span>
+<span class="font-label-md text-label-md uppercase">Routes</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-medium hover:bg-surface-container transition-all rounded-r-xl mr-2" href="#">
+<span class="material-symbols-outlined">monitoring</span>
+<span class="font-label-md text-label-md uppercase">Analytics</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-medium hover:bg-surface-container transition-all rounded-r-xl mr-2" href="#">
+<span class="material-symbols-outlined">inventory_2</span>
+<span class="font-label-md text-label-md uppercase">Archive</span>
+</a>
+</nav>
+<div class="mt-auto border-t border-outline-variant p-4">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant font-medium hover:bg-surface-container transition-all rounded-xl" href="#">
+<span class="material-symbols-outlined">help</span>
+<span class="font-label-md text-label-md uppercase">Support</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Staging Area (Positioned absolute over the map) -->
+<main class="absolute top-16 left-[240px] right-0 bottom-0 z-30 pointer-events-none flex flex-col justify-between p-8">
+<!-- Center-Top Floating UI: Pipeline Slider -->
+<div class="pointer-events-auto self-center flex flex-col items-center">
+<!-- Vendor Info -->
+<div class="mb-4 text-center">
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface mb-1">Oasis Global</h3>
+<p class="font-body-sm text-body-sm text-tertiary-container bg-surface/80 px-3 py-1 rounded-xl backdrop-blur-sm border border-outline-variant inline-block font-mono">EXP: ₹12,40,000</p>
+</div>
+<!-- Glass Slider -->
+<div class="glass-panel rounded-xl px-8 py-4 flex items-center gap-4">
+<!-- Step 1: Detected (Completed) -->
+<div class="flex flex-col items-center gap-2">
+<div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[12px] text-on-primary font-bold">check</span>
+</div>
+<span class="font-label-md text-[10px] text-primary uppercase">Detected</span>
+</div>
+<div class="h-0.5 w-8 bg-primary"></div>
+<!-- Step 2: Diagnosed (Completed) -->
+<div class="flex flex-col items-center gap-2">
+<div class="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
+<span class="material-symbols-outlined text-[12px] text-on-primary font-bold">check</span>
+</div>
+<span class="font-label-md text-[10px] text-primary uppercase">Diagnosed</span>
+</div>
+<div class="h-0.5 w-8 bg-primary"></div>
+<!-- Step 3: Sourcing (Current) -->
+<div class="flex flex-col items-center gap-2 relative">
+<div class="absolute -inset-1.5 bg-primary/20 rounded-full animate-pulse"></div>
+<div class="w-5 h-5 rounded-full border-2 border-primary bg-surface flex items-center justify-center z-10">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+</div>
+<span class="font-label-md text-[10px] text-primary font-bold uppercase z-10">Sourcing</span>
+</div>
+<div class="h-0.5 w-8 bg-outline-variant"></div>
+<!-- Step 4: Approved (Pending) -->
+<div class="flex flex-col items-center gap-2 opacity-50">
+<div class="w-5 h-5 rounded-full border border-outline bg-surface"></div>
+<span class="font-label-md text-[10px] text-outline uppercase">Approved</span>
+</div>
+<div class="h-0.5 w-8 bg-outline-variant opacity-50"></div>
+<!-- Step 5: Negotiating (Pending) -->
+<div class="flex flex-col items-center gap-2 opacity-50">
+<div class="w-5 h-5 rounded-full border border-outline bg-surface"></div>
+<span class="font-label-md text-[10px] text-outline uppercase">Negotiating</span>
+</div>
+<div class="h-0.5 w-8 bg-outline-variant opacity-50"></div>
+<!-- Step 6: Settled (Pending) -->
+<div class="flex flex-col items-center gap-2 opacity-50">
+<div class="w-5 h-5 rounded-full border border-outline bg-surface"></div>
+<span class="font-label-md text-[10px] text-outline uppercase">Settled</span>
+</div>
+</div>
+</div>
+<!-- Bottom Floating UI: Bento Grid -->
+<div class="pointer-events-auto grid grid-cols-4 gap-6 mt-auto w-full max-w-[1200px] mx-auto">
+<!-- Tile 1: Exposure -->
+<div class="glass-panel rounded-xl p-5 flex flex-col justify-between hover:bg-surface transition-colors duration-300">
+<div class="flex items-center gap-2 mb-4 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+<h4 class="font-label-md text-label-md uppercase">Global Exposure</h4>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-baseline border-b border-outline-variant/30 pb-2">
+<span class="font-body-md text-body-md font-mono text-error font-medium">₹42.5M</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase">At Risk</span>
+</div>
+<div class="flex justify-between items-baseline pt-2">
+<span class="font-body-md text-body-md font-mono text-primary font-medium">₹18.2M</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase">Mitigated</span>
+</div>
+</div>
+</div>
+<!-- Tile 2: Active Disruptions -->
+<div class="glass-panel rounded-xl p-5 flex flex-col col-span-1 hover:bg-surface transition-colors duration-300 relative overflow-hidden">
+<!-- Decorative pulse in background -->
+<div class="absolute -right-4 -top-4 w-24 h-24 bg-error/5 rounded-full animate-pulse pointer-events-none"></div>
+<div class="flex items-center gap-2 mb-2 text-error">
+<span class="material-symbols-outlined text-[20px]">warning</span>
+<h4 class="font-label-md text-label-md uppercase">Active Disruptions</h4>
+</div>
+<div class="flex items-baseline gap-3 mb-3">
+<span class="font-headline-xl text-headline-xl text-error">14</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Critical nodes</span>
+</div>
+<ul class="flex flex-col gap-2 mt-auto">
+<li class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-error"></div>
+<span class="font-body-sm text-body-sm font-mono text-on-surface truncate">Maersk Delta</span>
+</li>
+<li class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-error"></div>
+<span class="font-body-sm text-body-sm font-mono text-on-surface truncate">Zim Logistics</span>
+</li>
+<li class="flex items-center gap-2">
+<div class="w-2 h-2 rounded-full bg-tertiary-container"></div>
+<span class="font-body-sm text-body-sm font-mono text-on-surface truncate">Evergreen</span>
+</li>
+</ul>
+</div>
+<!-- Tile 3: Vendor Dues -->
+<div class="glass-panel rounded-xl p-5 flex flex-col justify-between hover:bg-surface transition-colors duration-300">
+<div class="flex items-center gap-2 mb-4 text-on-surface-variant">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+<h4 class="font-label-md text-label-md uppercase">Vendor Dues</h4>
+</div>
+<div class="flex flex-col gap-1">
+<div class="flex justify-between items-baseline border-b border-outline-variant/30 pb-2">
+<span class="font-body-md text-body-md font-mono text-on-surface font-medium">₹8,45,000</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase">Total Due</span>
+</div>
+<div class="flex justify-between items-baseline pt-2">
+<span class="font-body-md text-body-md font-mono text-tertiary-container font-medium">42 Days</span>
+<span class="font-label-md text-label-md text-on-surface-variant uppercase">Oldest</span>
+</div>
+</div>
+</div>
+<!-- Tile 4: Operations Assistant -->
+<div class="glass-panel rounded-xl p-5 flex flex-col col-span-1 justify-between bg-surface-container-low/90">
+<div class="flex items-center gap-2 mb-4 text-primary">
+<span class="material-symbols-outlined text-[20px]">smart_toy</span>
+<h4 class="font-label-md text-label-md uppercase">Ops Assistant</h4>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-4">Query network status or reroute protocols.</p>
+<div class="relative mt-auto">
+<input class="w-full bg-surface border border-outline-variant rounded-xl px-4 py-2 font-body-sm text-body-sm font-mono text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all placeholder:text-outline/50" placeholder="Command..." type="text"/>
+<button class="absolute right-1 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center text-primary hover:bg-secondary-container rounded-lg transition-colors">
+<span class="material-symbols-outlined text-[18px]">send</span>
+</button>
+</div>
+</div>
+</div>
+</main>
+</body></html>
