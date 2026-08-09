@@ -7,7 +7,8 @@
 // demo layer stays visually consistent with the four existing routes.
 
 import { formatPaiseFull } from "./format";
-import type { DemoState, GraphEdge, GraphNode, ImpactGraph, Plan, SimulateTarget } from "./types";
+import { candidatesFixture } from "./directoryFixtures";
+import type { AgentSheetSync, DemoState, GraphEdge, GraphNode, ImpactGraph, Plan, SimulateTarget } from "./types";
 
 const SHREE_BALAJI_VENDOR_ID = "4c34118b-bbe1-4016-885d-e6bc7917b3b0";
 const KOHINOOR_VENDOR_ID = "1799a38c-a9ed-4d03-b666-4784d6346a7b";
@@ -101,6 +102,20 @@ export const demoStateFixture: DemoState = {
   ws_clients: 2,
   db_roundtrip_ms: 38,
 };
+
+// D5a: agent sheet sync fixture — "the agent was briefed by our system" is a
+// claim CandidateRail's status line makes out loud, so it needs a fixture
+// path just like everything else does. Always succeeds instantly; there's no
+// interesting UNAVAILABLE-path fixture to script since the real failure mode
+// (Google Sheets API down) can't happen against local data anyway.
+export function agentSheetSyncFixture(): AgentSheetSync {
+  return {
+    status: "SYNCED",
+    rows_written: candidatesFixture.length,
+    worksheet: "Vendor Briefing",
+    synced_at: new Date().toISOString(),
+  };
+}
 
 function paise(rupees: number) {
   return { paise: rupees * 100, display: formatPaiseFull(rupees * 100) };

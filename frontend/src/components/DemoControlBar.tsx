@@ -25,12 +25,17 @@ export default function DemoControlBar() {
   const webhookLabel = webhookReceived ? "Webhook received" : callId ? "Waiting for webhook" : "Webhook idle";
   const webhookDot = webhookReceived ? "bg-success" : callId ? "bg-warning" : "bg-ink-faint";
 
+  function jump(mode: string) {
+    const disruptionId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("d");
+    router.push(`/command?${disruptionId ? `d=${disruptionId}&` : ""}mode=${mode}`);
+  }
+
   useEffect(() => {
     if (!ENABLED) return;
     function onKey(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       const index = Number(event.key) - 1;
-      if (index >= 0 && index < MODES.length) router.push(`/command?mode=${MODES[index]}`);
+      if (index >= 0 && index < MODES.length) jump(MODES[index]);
       if (event.key.toLowerCase() === "r") handleReplay();
     }
     window.addEventListener("keydown", onKey);
@@ -38,11 +43,6 @@ export default function DemoControlBar() {
   });
 
   if (!ENABLED) return null;
-
-  function jump(mode: string) {
-    const disruptionId = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("d");
-    router.push(`/command?${disruptionId ? `d=${disruptionId}&` : ""}mode=${mode}`);
-  }
 
   async function reset() {
     await api.resetDemo();

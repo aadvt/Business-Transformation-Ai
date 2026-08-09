@@ -1,0 +1,271 @@
+{
+  "screenshot": {
+    "name": "projects/7235921167627098420/screens/8b576519a3ef42ddae0ad58a2cc6b6ec/fileEntries/screenshot",
+    "downloadUrl": "https://lh3.googleusercontent.com/aida/AP1WRLtmUJRDVG6BOu4hY5QJGH8OeySMguTWxmg7c6NOgyqZQK_mXoE_vHj-pOVhBlNwOY3PHCve2YiXaB4JoiGzvSqhou0muC33bR3Z8OfZCyEdwrm_xUq3PgB4KZZtw3qTbeDQkXlrzoiKeKjgfZtd7poHjWR4YZkqiy7YZ1z4cIykQnBDueD6mIuuHtYogHy303Gy9z7Qte5a8tWVDwyOhkwBe42--s_zGsYrdxyFhtQ6NE-NeBGHmz9z_AI"
+  },
+  "htmlCode": {
+    "name": "projects/7235921167627098420/screens/8b576519a3ef42ddae0ad58a2cc6b6ec/fileEntries/html",
+    "downloadUrl": "https://contribution.usercontent.google.com/download?c=CgthaWRhX2NvZGVmeBJ7Eh1hcHBfY29tcGFuaW9uX2dlbmVyYXRlZF9maWxlcxpaCiVodG1sXzAwMDY1ODllNTA5YzdjYWUwMzM4NWFkZWViMmI5NzUxEgsSBxDIo8LZ8gIYAZIBIwoKcHJvamVjdF9pZBIVQhM3MjM1OTIxMTY3NjI3MDk4NDIw&filename=&opi=89354086",
+    "mimeType": "text/html"
+  },
+  "id": "8b576519a3ef42ddae0ad58a2cc6b6ec",
+  "generatedBy": "HatterAgent",
+  "width": "2560",
+  "height": "2048",
+  "title": "Disruption Pipeline (Rounded)",
+  "prompt": "Update the screen to use the new rounded aesthetic from the design system {{DATA:DESIGN_SYSTEM:DESIGN_SYSTEM_6}}. Apply rounded corners (approx 12px) to all Kanban lane headers and individual disruption cards. Ensure the agent status chips at the top also feature rounded corners. Maintain the spatial layout and color-coded information while softening the edges of all components.",
+  "name": "projects/7235921167627098420/screens/8b576519a3ef42ddae0ad58a2cc6b6ec",
+  "theme": {
+    "colorMode": "LIGHT",
+    "font": "MANROPE",
+    "roundness": "ROUND_EIGHT",
+    "customColor": "#2563eb",
+    "headlineFont": "MANROPE",
+    "bodyFont": "INTER",
+    "labelFont": "INTER",
+    "namedColors": {
+      "surface_tint": "#0053db",
+      "tertiary_fixed": "#e0e3e5",
+      "secondary_container": "#d0e1fb",
+      "on_background": "#131b2e",
+      "on_primary": "#ffffff",
+      "on_primary_fixed_variant": "#003ea8",
+      "outline_variant": "#c3c6d7",
+      "on_secondary_fixed": "#0b1c30",
+      "secondary_fixed_dim": "#b7c8e1",
+      "surface_bright": "#faf8ff",
+      "on_surface_variant": "#434655",
+      "secondary": "#505f76",
+      "background": "#faf8ff",
+      "error_container": "#ffdad6",
+      "on_primary_fixed": "#00174b",
+      "surface_container": "#eaedff",
+      "outline": "#737686",
+      "inverse_on_surface": "#eef0ff",
+      "primary_fixed": "#dbe1ff",
+      "on_tertiary": "#ffffff",
+      "on_secondary": "#ffffff",
+      "surface_container_highest": "#dae2fd",
+      "primary_fixed_dim": "#b4c5ff",
+      "secondary_fixed": "#d3e4fe",
+      "tertiary_container": "#6b6e70",
+      "surface": "#faf8ff",
+      "inverse_primary": "#b4c5ff",
+      "on_tertiary_fixed": "#191c1e",
+      "error": "#ba1a1a",
+      "on_secondary_fixed_variant": "#38485d",
+      "primary": "#004ac6",
+      "on_error": "#ffffff",
+      "on_surface": "#131b2e",
+      "tertiary_fixed_dim": "#c4c7c9",
+      "inverse_surface": "#283044",
+      "surface_dim": "#d2d9f4",
+      "tertiary": "#525657",
+      "primary_container": "#2563eb",
+      "on_secondary_container": "#54647a",
+      "surface_container_low": "#f2f3ff",
+      "surface_container_high": "#e2e7ff",
+      "on_primary_container": "#eeefff",
+      "surface_variant": "#dae2fd",
+      "on_tertiary_container": "#eff1f3",
+      "on_error_container": "#93000a",
+      "on_tertiary_fixed_variant": "#444749",
+      "surface_container_lowest": "#ffffff"
+    },
+    "colorVariant": "FIDELITY",
+    "overridePrimaryColor": "#2563eb",
+    "overrideSecondaryColor": "#64748b",
+    "overrideTertiaryColor": "#f8fafc",
+    "overrideNeutralColor": "#0f172a",
+    "spacingScale": 2,
+    "typography": {
+      "label-md": {
+        "fontFamily": "Inter",
+        "fontSize": "12px",
+        "fontWeight": "600",
+        "lineHeight": "16px",
+        "letterSpacing": "0.05em"
+      },
+      "headline-lg": {
+        "fontFamily": "Manrope",
+        "fontSize": "32px",
+        "fontWeight": "700",
+        "lineHeight": "40px",
+        "letterSpacing": "-0.01em"
+      },
+      "headline-xl": {
+        "fontFamily": "Manrope",
+        "fontSize": "48px",
+        "fontWeight": "700",
+        "lineHeight": "56px",
+        "letterSpacing": "-0.02em"
+      },
+      "headline-lg-mobile": {
+        "fontFamily": "Manrope",
+        "fontSize": "24px",
+        "fontWeight": "700",
+        "lineHeight": "32px"
+      },
+      "body-sm": {
+        "fontFamily": "Inter",
+        "fontSize": "14px",
+        "fontWeight": "400",
+        "lineHeight": "20px"
+      },
+      "body-md": {
+        "fontFamily": "Inter",
+        "fontSize": "16px",
+        "fontWeight": "400",
+        "lineHeight": "24px"
+      }
+    },
+    "spacing": {
+      "gutter": "24px",
+      "base": "8px",
+      "xs": "4px",
+      "md": "24px",
+      "lg": "48px",
+      "margin-mobile": "16px",
+      "margin-desktop": "64px",
+      "sm": "12px",
+      "xl": "80px"
+    },
+    "headlineFontFamily": "Manrope",
+    "bodyFontFamily": "Inter",
+    "labelFontFamily": "Inter"
+  },
+  "deviceType": "DESKTOP",
+  "screenType": "DESIGN",
+  "screenMetadata": {
+    "agentType": "PRO_AGENT",
+    "status": "COMPLETE"
+  },
+  "designSystem": {
+    "name": "assets/508650e7f17546bb974fd11fe6130226",
+    "designSystem": {
+      "displayName": "Soft Logic",
+      "styleGuidelines": "## Brand & Style\n\nThis design system follows a **Modern Corporate** aesthetic with a heavy emphasis on approachability and clarity. It balances professional reliability with a friendly, human-centric touch through softened geometry and generous whitespace.\n\nThe style is characterized by:\n- **Clean Surfaces:** Subtle tonal shifts rather than heavy borders.\n- **Modern Softness:** A move away from clinical sharp corners toward organic, rounded shapes that feel safe and inviting.\n- **Clarity:** High legibility and a focus on essential information, reducing cognitive load for the user.\n\n## Layout & Spacing\n\nThe design system utilizes a **Fluid Grid** model based on an 8px base unit. \n\n- **Desktop:** 12-column grid with 24px gutters and 64px side margins.\n- **Tablet:** 8-column grid with 24px gutters and 32px side margins.\n- **Mobile:** 4-column grid with 16px gutters and 16px side margins.\n\nSpacing between functional groups should typically use `md` (24px), while internal component padding should use `sm` (12px) to maintain a compact but breathable feel.\n\n## Elevation & Depth\n\nHierarchy is established through **Tonal Layers** and **Ambient Shadows**. Instead of harsh outlines, surfaces are distinguished by subtle shifts in background color (e.g., a Tertiary background with white cards).\n\nShadows should be extremely soft:\n- **Low Elevation:** 0px 2px 4px rgba(0, 0, 0, 0.05).\n- **High Elevation:** 0px 12px 24px rgba(0, 0, 0, 0.08).\n- **Depth:** Avoid pure black shadows; use a slight tint of the neutral color for a more natural, integrated look.\n\n## Components\n\n### Buttons\nPrimary buttons use the `primary_color_hex` with white text. They feature a 16px corner radius and 12px vertical x 24px horizontal padding. Hover states involve a subtle darken transform.\n\n### Cards\nCards are the primary container for information. They must use the `rounded-xl` (24px) radius to emphasize the soft aesthetic. Backgrounds should be white with a low-elevation ambient shadow.\n\n### Input Fields\nFields use a 16px corner radius and a 1px border in the `secondary` color at low opacity. Focus states should transition the border to `primary` and add a subtle outer glow (3px spread).\n\n### Chips & Tags\nThese use a fully pill-shaped radius (32px or greater) to distinguish them from actionable buttons. They use low-saturation background tints of the primary or secondary colors.\n\n### Lists\nList items should have 8px of vertical spacing between them, with a 12px corner radius on hover or active states to match the overall rounded language.",
+      "theme": {
+        "colorMode": "LIGHT",
+        "font": "MANROPE",
+        "roundness": "ROUND_EIGHT",
+        "customColor": "#2563eb",
+        "headlineFont": "MANROPE",
+        "bodyFont": "INTER",
+        "labelFont": "INTER",
+        "namedColors": {
+          "surface_container_lowest": "#ffffff",
+          "on_error": "#ffffff",
+          "tertiary_container": "#6b6e70",
+          "inverse_surface": "#283044",
+          "surface_container_high": "#e2e7ff",
+          "on_tertiary_fixed": "#191c1e",
+          "on_secondary_container": "#54647a",
+          "tertiary": "#525657",
+          "inverse_on_surface": "#eef0ff",
+          "primary_fixed": "#dbe1ff",
+          "primary_container": "#2563eb",
+          "on_surface_variant": "#434655",
+          "on_secondary_fixed": "#0b1c30",
+          "on_tertiary_container": "#eff1f3",
+          "on_primary_container": "#eeefff",
+          "on_primary": "#ffffff",
+          "surface_variant": "#dae2fd",
+          "on_tertiary_fixed_variant": "#444749",
+          "secondary": "#505f76",
+          "primary": "#004ac6",
+          "on_background": "#131b2e",
+          "background": "#faf8ff",
+          "surface_container_low": "#f2f3ff",
+          "on_tertiary": "#ffffff",
+          "error_container": "#ffdad6",
+          "surface": "#faf8ff",
+          "surface_dim": "#d2d9f4",
+          "surface_bright": "#faf8ff",
+          "outline_variant": "#c3c6d7",
+          "on_error_container": "#93000a",
+          "on_primary_fixed": "#00174b",
+          "on_secondary": "#ffffff",
+          "tertiary_fixed": "#e0e3e5",
+          "outline": "#737686",
+          "secondary_container": "#d0e1fb",
+          "inverse_primary": "#b4c5ff",
+          "error": "#ba1a1a",
+          "secondary_fixed": "#d3e4fe",
+          "tertiary_fixed_dim": "#c4c7c9",
+          "surface_container": "#eaedff",
+          "on_primary_fixed_variant": "#003ea8",
+          "on_secondary_fixed_variant": "#38485d",
+          "on_surface": "#131b2e",
+          "surface_tint": "#0053db",
+          "primary_fixed_dim": "#b4c5ff",
+          "surface_container_highest": "#dae2fd",
+          "secondary_fixed_dim": "#b7c8e1"
+        },
+        "designMd": "---\nname: Soft Logic\ncolors:\n  surface: '#faf8ff'\n  surface-dim: '#d2d9f4'\n  surface-bright: '#faf8ff'\n  surface-container-lowest: '#ffffff'\n  surface-container-low: '#f2f3ff'\n  surface-container: '#eaedff'\n  surface-container-high: '#e2e7ff'\n  surface-container-highest: '#dae2fd'\n  on-surface: '#131b2e'\n  on-surface-variant: '#434655'\n  inverse-surface: '#283044'\n  inverse-on-surface: '#eef0ff'\n  outline: '#737686'\n  outline-variant: '#c3c6d7'\n  surface-tint: '#0053db'\n  primary: '#004ac6'\n  on-primary: '#ffffff'\n  primary-container: '#2563eb'\n  on-primary-container: '#eeefff'\n  inverse-primary: '#b4c5ff'\n  secondary: '#505f76'\n  on-secondary: '#ffffff'\n  secondary-container: '#d0e1fb'\n  on-secondary-container: '#54647a'\n  tertiary: '#525657'\n  on-tertiary: '#ffffff'\n  tertiary-container: '#6b6e70'\n  on-tertiary-container: '#eff1f3'\n  error: '#ba1a1a'\n  on-error: '#ffffff'\n  error-container: '#ffdad6'\n  on-error-container: '#93000a'\n  primary-fixed: '#dbe1ff'\n  primary-fixed-dim: '#b4c5ff'\n  on-primary-fixed: '#00174b'\n  on-primary-fixed-variant: '#003ea8'\n  secondary-fixed: '#d3e4fe'\n  secondary-fixed-dim: '#b7c8e1'\n  on-secondary-fixed: '#0b1c30'\n  on-secondary-fixed-variant: '#38485d'\n  tertiary-fixed: '#e0e3e5'\n  tertiary-fixed-dim: '#c4c7c9'\n  on-tertiary-fixed: '#191c1e'\n  on-tertiary-fixed-variant: '#444749'\n  background: '#faf8ff'\n  on-background: '#131b2e'\n  surface-variant: '#dae2fd'\ntypography:\n  headline-xl:\n    fontFamily: Manrope\n    fontSize: 48px\n    fontWeight: '700'\n    lineHeight: 56px\n    letterSpacing: -0.02em\n  headline-lg:\n    fontFamily: Manrope\n    fontSize: 32px\n    fontWeight: '700'\n    lineHeight: 40px\n    letterSpacing: -0.01em\n  headline-lg-mobile:\n    fontFamily: Manrope\n    fontSize: 24px\n    fontWeight: '700'\n    lineHeight: 32px\n  body-md:\n    fontFamily: Inter\n    fontSize: 16px\n    fontWeight: '400'\n    lineHeight: 24px\n  body-sm:\n    fontFamily: Inter\n    fontSize: 14px\n    fontWeight: '400'\n    lineHeight: 20px\n  label-md:\n    fontFamily: Inter\n    fontSize: 12px\n    fontWeight: '600'\n    lineHeight: 16px\n    letterSpacing: 0.05em\nrounded:\n  sm: 0.25rem\n  DEFAULT: 0.5rem\n  md: 0.75rem\n  lg: 1rem\n  xl: 1.5rem\n  full: 9999px\nspacing:\n  base: 8px\n  xs: 4px\n  sm: 12px\n  md: 24px\n  lg: 48px\n  xl: 80px\n  gutter: 24px\n  margin-mobile: 16px\n  margin-desktop: 64px\n---\n\n## Brand & Style\n\nThis design system follows a **Modern Corporate** aesthetic with a heavy emphasis on approachability and clarity. It balances professional reliability with a friendly, human-centric touch through softened geometry and generous whitespace.\n\nThe style is characterized by:\n- **Clean Surfaces:** Subtle tonal shifts rather than heavy borders.\n- **Modern Softness:** A move away from clinical sharp corners toward organic, rounded shapes that feel safe and inviting.\n- **Clarity:** High legibility and a focus on essential information, reducing cognitive load for the user.\n\n## Colors\n\nThe palette is anchored by a vibrant digital blue to signal action and trust. \n\n- **Primary:** Used for main actions, active states, and brand highlights.\n- **Secondary:** Applied to supporting information and less prominent UI elements.\n- **Tertiary:** Utilized for large surface areas and background containers to create soft contrast.\n- **Neutral:** Reserved for high-contrast typography and deep structural elements.\n\n## Typography\n\nThe typographic scale uses **Manrope** for headlines to inject a modern, geometric character into the interface. **Inter** is used for body copy and labels to ensure maximum functional legibility across all screen densities.\n\nHeadlines should utilize tighter letter spacing as they scale up to maintain visual cohesion. Body text remains neutral and rhythmic, prioritizing ease of reading in data-heavy views.\n\n## Layout & Spacing\n\nThe design system utilizes a **Fluid Grid** model based on an 8px base unit. \n\n- **Desktop:** 12-column grid with 24px gutters and 64px side margins.\n- **Tablet:** 8-column grid with 24px gutters and 32px side margins.\n- **Mobile:** 4-column grid with 16px gutters and 16px side margins.\n\nSpacing between functional groups should typically use `md` (24px), while internal component padding should use `sm` (12px) to maintain a compact but breathable feel.\n\n## Elevation & Depth\n\nHierarchy is established through **Tonal Layers** and **Ambient Shadows**. Instead of harsh outlines, surfaces are distinguished by subtle shifts in background color (e.g., a Tertiary background with white cards).\n\nShadows should be extremely soft:\n- **Low Elevation:** 0px 2px 4px rgba(0, 0, 0, 0.05).\n- **High Elevation:** 0px 12px 24px rgba(0, 0, 0, 0.08).\n- **Depth:** Avoid pure black shadows; use a slight tint of the neutral color for a more natural, integrated look.\n\n## Shapes\n\nThe design system uses a **Rounded** aesthetic to communicate friendliness and modernity. \n\n- **Base Radius (0.5rem / 8px):** Used for smaller elements like checkboxes and tags.\n- **Large Radius (1rem / 16px):** Used for standard buttons, input fields, and small cards.\n- **Extra Large Radius (1.5rem / 24px):** Used for main container cards, modals, and featured sections.\n\nThis consistent \"soft-square\" logic ensures that the UI feels cohesive and approachable without becoming overly juvenile.\n\n## Components\n\n### Buttons\nPrimary buttons use the `primary_color_hex` with white text. They feature a 16px corner radius and 12px vertical x 24px horizontal padding. Hover states involve a subtle darken transform.\n\n### Cards\nCards are the primary container for information. They must use the `rounded-xl` (24px) radius to emphasize the soft aesthetic. Backgrounds should be white with a low-elevation ambient shadow.\n\n### Input Fields\nFields use a 16px corner radius and a 1px border in the `secondary` color at low opacity. Focus states should transition the border to `primary` and add a subtle outer glow (3px spread).\n\n### Chips & Tags\nThese use a fully pill-shaped radius (32px or greater) to distinguish them from actionable buttons. They use low-saturation background tints of the primary or secondary colors.\n\n### Lists\nList items should have 8px of vertical spacing between them, with a 12px corner radius on hover or active states to match the overall rounded language.",
+        "colorVariant": "FIDELITY",
+        "overridePrimaryColor": "#2563eb",
+        "overrideSecondaryColor": "#64748b",
+        "overrideTertiaryColor": "#f8fafc",
+        "overrideNeutralColor": "#0f172a",
+        "spacingScale": 2,
+        "typography": {
+          "body-sm": {
+            "fontFamily": "Inter",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "lineHeight": "20px"
+          },
+          "body-md": {
+            "fontFamily": "Inter",
+            "fontSize": "16px",
+            "fontWeight": "400",
+            "lineHeight": "24px"
+          },
+          "headline-lg-mobile": {
+            "fontFamily": "Manrope",
+            "fontSize": "24px",
+            "fontWeight": "700",
+            "lineHeight": "32px"
+          },
+          "headline-lg": {
+            "fontFamily": "Manrope",
+            "fontSize": "32px",
+            "fontWeight": "700",
+            "lineHeight": "40px",
+            "letterSpacing": "-0.01em"
+          },
+          "headline-xl": {
+            "fontFamily": "Manrope",
+            "fontSize": "48px",
+            "fontWeight": "700",
+            "lineHeight": "56px",
+            "letterSpacing": "-0.02em"
+          },
+          "label-md": {
+            "fontFamily": "Inter",
+            "fontSize": "12px",
+            "fontWeight": "600",
+            "lineHeight": "16px",
+            "letterSpacing": "0.05em"
+          }
+        },
+        "spacing": {
+          "sm": "12px",
+          "xl": "80px",
+          "xs": "4px",
+          "md": "24px",
+          "lg": "48px",
+          "margin-mobile": "16px",
+          "margin-desktop": "64px",
+          "base": "8px",
+          "gutter": "24px"
+        },
+        "headlineFontFamily": "Manrope",
+        "bodyFontFamily": "Inter",
+        "labelFontFamily": "Inter"
+      }
+    },
+    "version": "1"
+  }
+}

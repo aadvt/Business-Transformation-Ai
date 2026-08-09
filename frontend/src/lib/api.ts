@@ -36,9 +36,10 @@ import type {
   VendorRegistrationRequest,
   VendorRegistrationResponse,
 } from "./types";
-import { demoStateFixture, impactGraphFixture, planFixture, simulateTargetsFixture } from "./demoFixtures";
+import { agentSheetSyncFixture, demoStateFixture, impactGraphFixture, planFixture, simulateTargetsFixture } from "./demoFixtures";
 import { allPublicVendors, findPublicVendor, registerFixtureVendor } from "./directoryFixtures";
 import { getPhoneMessagesFixture } from "./phoneFixtures";
+import { getFixtureCall, replayFixtureCall, startFixtureCall } from "./callFixtures";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -204,21 +205,33 @@ export const api = {
   getVendorContext: (vendorId: string) => request<VendorContext>(`/api/v1/vendors/${vendorId}/context`),
 
   syncAgentSheet: (disruptionId?: string) =>
-    request<AgentSheetSync>("/api/v1/agent/sync-sheet", {
-      method: "POST",
-      body: JSON.stringify({ disruption_id: disruptionId }),
-    }),
+    USE_FIXTURES
+      ? Promise.resolve(agentSheetSyncFixture())
+      : request<AgentSheetSync>("/api/v1/agent/sync-sheet", {
+          method: "POST",
+          body: JSON.stringify({ disruption_id: disruptionId }),
+        }),
 
   startCall: (body: CallStartRequest) =>
-    request<CallSession>("/api/v1/calls/start", { method: "POST", body: JSON.stringify(body) }),
+    USE_FIXTURES
+      ? Promise.resolve(startFixtureCall(body))
+      : request<CallSession>("/api/v1/calls/start", { method: "POST", body: JSON.stringify(body) }),
 
-  getCall: (callId: string) => request<CallSession>(`/api/v1/calls/${callId}`),
+  getCall: (callId: string) =>
+    USE_FIXTURES ? Promise.resolve(getFixtureCall(callId)) : request<CallSession>(`/api/v1/calls/${callId}`),
 
   replayLastCall: (callId: string) =>
-    request<CallSession>(`/api/v1/calls/${callId}/replay`, { method: "POST" }),
+    USE_FIXTURES
+      ? Promise.resolve(replayFixtureCall(callId))
+      : request<CallSession>(`/api/v1/calls/${callId}/replay`, { method: "POST" }),
 
+  // In fixture mode this never leaves the tab — pointing it at the real path
+  // would just 404 with no backend running, so the link goes nowhere
+  // (harmless "#") instead of looking like a broken feature during rehearsal.
   getAgentSheetCsvUrl: (disruptionId?: string) =>
-    `${API_BASE_URL}/api/v1/agent/vendor-sheet.csv${query({ disruption_id: disruptionId })}`,
+    USE_FIXTURES
+      ? "#agent-sheet-fixture"
+      : `${API_BASE_URL}/api/v1/agent/vendor-sheet.csv${query({ disruption_id: disruptionId })}`,
 
   getDashboardSummary: () => request<DashboardSummary>("/api/v1/dashboard/summary"),
 

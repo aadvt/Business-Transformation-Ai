@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, Zap } from "lucide-react";
 import { toast } from "sonner";
@@ -41,7 +42,23 @@ type Phase = "idle" | "running" | "resolved";
 const LEFT_WIDTH: Record<Phase, number> = { idle: 320, running: 208, resolved: 208 };
 const TRANSITION = { duration: PHASE_TRANSITION_MS / 1000, ease: "easeOut" as const };
 
+// DemoControlBar's numbered jump buttons and 1-7 keyboard shortcuts push
+// /command?d=<id>&mode=<mode> — this is the recovery path the D5b brief asks
+// for ("the operator must be able to recover on stage without a terminal").
+// Each mode implies everything before it in the flow, so restoring mode
+// "plan" also (re)populates the graph and candidates, not just the plan.
+const MODE_ORDER = ["ingest", "briefing", "impact", "candidates", "plan", "call", "outcome"] as const;
+type ModeName = (typeof MODE_ORDER)[number];
+
 export default function CommandPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[76vh] min-h-[560px] items-center justify-center"><Spinner size={18} label="Loading…" /></div>}>
+      <CommandPageInner />
+    </Suspense>
+  );
+}
+
+function CommandPageInner() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogDefaultScenario, setDialogDefaultScenario] = useState<ScenarioKind>("DELAYED");
@@ -62,6 +79,7 @@ export default function CommandPage() {
   const [callStarting, setCallStarting] = useState(false);
 
   const canvasRootRef = useRef<HTMLDivElement>(null);
+  const searchParams = useSearchParams();
 
   const { data: disruptionsData } = useDisruptions();
   const { data: agentsResponse } = useAgentsStatus();
@@ -230,6 +248,64 @@ export default function CommandPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Restores whatever stage `mode` names, instantly (fixtures) or by
+  // re-fetching (real backend) — each mode implies everything before it, so
+  // jumping straight to "plan" also brings the graph and candidates back.
+  // Never auto-dials a real call: in real mode, "call"/"outcome" only render
+  // whatever the existing `?call=` param already resolved above — the
+  // operator still has to press "Call vendor" themselves. Fixture mode has
+  // no real phone to worry about, so it auto-starts a scripted replay call.
+  useEffect(() => {
+    const mode = searchParams.get("mode") as ModeName | null;
+    if (!mode || !MODE_ORDER.includes(mode)) return;
+    const d = searchParams.get("d");
+    if (d && d !== disruptionId) setDisruptionId(d);
+    const targetId = d ?? disruptionId ?? impactGraphFixture.disruption_id;
+    const idx = MODE_ORDER.indexOf(mode);
+
+    if (idx === 0) {
+      setPhase("idle");
+      return;
+    }
+    setPhase("running");
+    if (idx === MODE_ORDER.indexOf("briefing")) {
+      if (USE_FIXTURES) setSheetSyncStatus("SYNCED");
+      else syncAgentSheet();
+      return;
+    }
+
+    setPhase("resolved");
+    if (!graph) {
+      if (USE_FIXTURES) {
+        setDisruptionId(impactGraphFixture.disruption_id);
+        setGraph(impactGraphFixture);
+      } else {
+        api.getImpactGraph(targetId).then(setGraph).catch(() => undefined);
+      }
+    }
+    if (idx >= MODE_ORDER.indexOf("candidates") && !candidates) {
+      if (USE_FIXTURES) setCandidates(candidatesFixture);
+      else api.getDisruption(targetId).then((dd) => setCandidates(dd.candidates)).catch(() => undefined);
+    }
+    if (idx >= MODE_ORDER.indexOf("plan") && !plan) {
+      if (USE_FIXTURES) setPlan(planFixture);
+      else api.getPlan(targetId).then(setPlan).catch(() => undefined);
+    }
+    if (idx >= MODE_ORDER.indexOf("call") && USE_FIXTURES && !callSession && !callStarting) {
+      setCallStarting(true);
+      api
+        .startCall({ disruption_id: targetId, vendor_id: candidatesFixture[0].vendor_id, mode: "REPLAY" })
+        .then((c) => {
+          setCallSession(c);
+          const url = new URL(window.location.href);
+          url.searchParams.set("call", c.id);
+          window.history.replaceState(null, "", url.toString());
+        })
+        .finally(() => setCallStarting(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   function startCall(mode: "LIVE" | "REPLAY") {
     const winner = candidates?.[0];
