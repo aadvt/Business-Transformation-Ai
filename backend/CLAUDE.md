@@ -622,8 +622,33 @@ here as it's completed, same style as the phase notes above.
   reason using portable columns. Candidate completion triggers sync through
   `asyncio.to_thread` and emits `AGENT_SHEET_SYNCED`; blocking gspread never
   runs on the event loop and never blocks sourcing.
-- `resolve_vendor()` establishes D5b's correlation ladder: exact extracted
-  `vendor_id`, normalized phone, then newest pending negotiation session.
+
+### D5b: Vendor correlation via resolve_vendor()
+
+- **Bolna voice agent webhook integration**: `POST /api/v1/webhooks/bolna`
+  receives call completion payloads and must determine which vendor the call
+  was with, even if the call details are incomplete or garbled.
+- **Correlation ladder** (ordered by priority):
+  1. Exact `vendor_id` in `extracted_data` dict from call extraction
+  2. Normalized phone matching: stripped of punctuation, country code `+91` or
+     leading `0`, compared on final 10 digits (Indian standard). Handles all
+     formats: `+919876543210`, `09876543210`, `9876-543-210`, `9876 543 210`.
+  3. Newest pending `Negotiation` session (status in `PENDING|IN_PROGRESS|NEGOTIATING`)
+  4. No match: return `(None, "none")`
+- `resolve_vendor(session, extracted, phone)` → `(Vendor | None, method: str)`
+  where method ∈ `"vendor_id" | "phone" | "pending_session" | "none"`.
+  Implemented in `app/services/agent_sheet.py:63-77`.
+- **CallSession table** tracks each call: `id`, `disruption_id`, `vendor_id`,
+  `status`, `source` (`LIVE_BOLNA|REPLAY`), `started_at`, `ended_at`, `phone`,
+  `transcript`, `extracted`, `validation`, **`correlation_method`** (how vendor
+  was resolved), `outcome_status`, `guardian_status`. Webhook handler stores
+  correlation_method for audit trail.
+- **Webhook flow**: `receive_bolna_webhook()` in `app/routers/webhooks.py`:
+  1. Validate `X-Voice-Adapter-Secret` header against `settings.bolna_webhook_secret`
+  2. Call `resolve_vendor(session, raw.get("extracted_data"), raw.get("user_number"))`
+  3. Create or update `CallSession` row with `correlation_method` and raw webhook
+  4. Log call completion with correlation outcome
+- No LLM involved; deterministic matching ensures replay consistency.
 
 ## Adding a new DB-backed endpoint
 

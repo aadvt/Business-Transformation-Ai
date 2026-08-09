@@ -6,6 +6,8 @@ for the full request/response reference.
 
 import uuid
 
+import pytest
+
 DISRUPTION_ID = "981f074f-9332-4b66-a24d-ffcaff0144cf"
 DISRUPTION_ID_PENDING_APPROVAL = "6947d32f-c8f4-4cba-ac9b-398529becdb8"
 VENDOR_ID = "4c34118b-bbe1-4016-885d-e6bc7917b3b0"
@@ -371,3 +373,103 @@ def test_phone_messages(client):
             assert "disruption_id" in msg["card"]
             assert "approval_id" in msg["card"]
             assert "actions" in msg["card"]
+
+
+# --- Demo phase D5a/D5b: Agent sheet context and vendor correlation --------
+
+
+def test_agent_vendor_sheet_csv(client):
+    """D5a: GET /api/v1/agent/vendor-sheet.csv returns CSV of candidates or backup pool."""
+    r = client.get("/api/v1/disruptions")
+    assert r.status_code == 200
+    disruptions = r.json()["items"]
+    if not disruptions:
+        pytest.skip("No disruptions seeded")
+
+    disruption = disruptions[0]
+    disruption_id = disruption["id"]
+
+    # CSV for a specific disruption (should have candidates if sourced)
+    r = client.get(f"/api/v1/agent/vendor-sheet.csv?disruption_id={disruption_id}")
+    assert r.status_code == 200
+    assert "text/csv" in r.headers.get("content-type", "")
+    csv_content = r.text
+    assert "vendor_id" in csv_content
+    assert "vendor_name" in csv_content
+
+    # CSV for no disruption (should return backup pool)
+    r = client.get("/api/v1/agent/vendor-sheet.csv")
+    assert r.status_code == 200
+    assert "text/csv" in r.headers.get("content-type", "")
+    csv_content = r.text
+    assert "vendor_id" in csv_content
+
+
+def test_call_session_lifecycle(client):
+    """D5a/D5b: Call session creation and retrieval."""
+    r = client.get("/api/v1/disruptions")
+    disruptions = r.json()["items"]
+    if not disruptions:
+        pytest.skip("No disruptions seeded")
+
+    disruption = disruptions[0]
+    disruption_id = disruption["id"]
+    vendor_id = disruption["vendor_id"]
+
+    # Start a call
+    r = client.post(
+        "/api/v1/calls/start",
+        json={
+            "disruption_id": disruption_id,
+            "vendor_id": vendor_id,
+            "mode": "REPLAY",
+        },
+    )
+    assert r.status_code == 200
+    call = r.json()
+    assert call["status"] == "DIALING"
+    assert call["vendor_id"] == vendor_id
+    assert call["disruption_id"] == disruption_id
+    call_id = call["id"]
+
+    # Retrieve the call
+    r = client.get(f"/api/v1/calls/{call_id}")
+    assert r.status_code == 200
+    retrieved = r.json()
+    assert retrieved["id"] == call_id
+    assert retrieved["status"] == "DIALING"
+
+
+def test_call_replay_with_bolna_webhook(client):
+    """D5b: Replay call processes Bolna webhook payload and extracts data."""
+    r = client.get("/api/v1/disruptions")
+    disruptions = r.json()["items"]
+    if not disruptions:
+        pytest.skip("No disruptions seeded")
+
+    disruption = disruptions[0]
+    disruption_id = disruption["id"]
+    vendor_id = disruption["vendor_id"]
+
+    # Start a call in REPLAY mode
+    r = client.post(
+        "/api/v1/calls/start",
+        json={
+            "disruption_id": disruption_id,
+            "vendor_id": vendor_id,
+            "mode": "REPLAY",
+        },
+    )
+    assert r.status_code == 200
+    call_id = r.json()["id"]
+
+    # Replay with fixture (processes webhook)
+    r = client.post(f"/api/v1/calls/{call_id}/replay")
+    assert r.status_code == 200
+    call = r.json()
+    assert call["status"] == "ENDED"
+    assert call["outcome_status"] == "completed"
+    # Extracted data should be present
+    assert isinstance(call.get("extracted", {}), dict)
+    # Transcript should be populated
+    assert isinstance(call.get("transcript", []), list)
