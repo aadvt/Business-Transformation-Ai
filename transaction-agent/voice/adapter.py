@@ -49,7 +49,10 @@ from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, status
 from pydantic import BaseModel
 
+from transaction_agent import negotiations
+from transaction_agent.models import utcnow_iso
 from voice import nlu
+from voice import sheets as voice_sheets
 from voice import state as voice_state
 
 load_dotenv()
@@ -67,6 +70,7 @@ class VoiceSettings:
         default_factory=lambda: os.environ.get("VOICE_ADAPTER_SHARED_SECRET", DEFAULT_DEV_SHARED_SECRET)
     )
     voice_state_path: str = field(default_factory=lambda: voice_state.DEFAULT_VOICE_STATE_PATH)
+    negotiations_path: str = field(default_factory=lambda: negotiations.DEFAULT_NEGOTIATIONS_PATH)
 
 
 # --- request/response models -----------------------------------------------
@@ -96,6 +100,16 @@ class VoiceDisambiguateBody(BaseModel):
     call_sid: str
     choice_text: Optional[str] = None
     dtmf_digit: Optional[str] = None
+
+
+class NegotiationOutcomeBody(BaseModel):
+    call_sid: str
+    vendor_name: str
+    outcome: str  # "accepted" | "declined"
+    agreed_amount: Optional[float] = None
+    currency: str = "INR"
+    purpose: Optional[str] = None
+    notes: Optional[str] = None
 
 
 class VoiceResponse(BaseModel):
@@ -341,6 +355,87 @@ def create_app(settings: Optional[VoiceSettings] = None, api_client: Optional[ht
         body = resp.json()
         body["call_sid"] = call_sid
         return body
+
+    @app.post("/voice/negotiation/outcome", response_model=VoiceResponse, dependencies=[auth])
+    def voice_negotiation_outcome(body: NegotiationOutcomeBody):
+        """Called by the *outbound vendor negotiation* agent (a separate
+        Bolna agent from the approval-flow one above) once a call ends.
+        Records the outcome regardless of what happens next; on 'accepted'
+        it also creates a normal payment request — through the exact same
+        POST /requests path any other channel uses — so the result lands
+        in the owner's regular approval queue rather than a side channel."""
+        if body.outcome not in ("accepted", "declined"):
+            spoken = "Sorry, I can only record an outcome as accepted or declined."
+            return VoiceResponse(spoken_text=spoken, status="error", call_sid=body.call_sid)
+
+        summary = f"{body.outcome}: {body.vendor_name}" + (
+            f" at {body.agreed_amount} {body.currency}" if body.agreed_amount is not None else ""
+        )
+        _log(body.call_sid, "negotiation_summary", summary)
+        transcript_ref = voice_state.transcript_ref_for(body.call_sid)
+
+        transaction_id = None
+        if body.outcome == "accepted":
+            if body.agreed_amount is None or body.agreed_amount <= 0:
+                spoken = "I need a valid agreed amount to record an accepted negotiation. What was the final price?"
+                return VoiceResponse(spoken_text=spoken, status="error", call_sid=body.call_sid)
+
+            raw_request = f"Pay {body.agreed_amount} to {body.vendor_name}"
+            if body.purpose:
+                raw_request += f" for {body.purpose}"
+            resp = client.post(
+                "/requests",
+                json={
+                    "raw_request": raw_request,
+                    "requester_id": f"voice-negotiation:{body.call_sid}",
+                    "channel": "voice",
+                    "call_id": body.call_sid,
+                    "transcript_ref": transcript_ref,
+                    # this agent has no disambiguation sub-flow of its own, unlike
+                    # the approval-flow agent — auto-resolve rather than block.
+                    "auto_resolve_recipients": True,
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if data.get("transactions"):
+                    transaction_id = data["transactions"][0]["id"]
+
+        negotiations.record_outcome(
+            call_sid=body.call_sid,
+            vendor_name=body.vendor_name,
+            outcome=body.outcome,
+            agreed_amount=body.agreed_amount,
+            currency=body.currency,
+            purpose=body.purpose,
+            notes=body.notes,
+            transcript_ref=transcript_ref,
+            transaction_id=transaction_id,
+            path=settings.negotiations_path,
+        )
+        voice_sheets.append_negotiation_row(
+            {
+                "created_at": utcnow_iso(),
+                "call_sid": body.call_sid,
+                "vendor_name": body.vendor_name,
+                "outcome": body.outcome,
+                "agreed_amount": body.agreed_amount,
+                "currency": body.currency,
+                "purpose": body.purpose,
+                "notes": body.notes,
+                "transaction_id": transaction_id,
+            }
+        )
+
+        if body.outcome == "accepted":
+            spoken = (
+                f"Thank you, {body.vendor_name}! I've recorded {body.agreed_amount} {body.currency} as agreed. "
+                "This has been sent to the owner for approval. Have a great day."
+            )
+        else:
+            spoken = f"No problem, thank you for your time — I've noted that {body.vendor_name} isn't able to proceed at this time."
+        _log(body.call_sid, "agent", spoken)
+        return VoiceResponse(spoken_text=spoken, status="recorded", call_sid=body.call_sid)
 
     return app
 

@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 
 from api import Settings as ApiSettings
 from api import create_app as create_api_app
-from transaction_agent import audit, recipient_directory, users
+from transaction_agent import audit, negotiations, recipient_directory, users
 from voice import state as voice_state
 from voice.adapter import VoiceSettings
 from voice.adapter import create_app as create_voice_app
@@ -36,7 +36,9 @@ def _build(tmp_path: pathlib.Path):
     api_client = TestClient(api_app, base_url="http://api-test", headers={"X-API-Key": "api-test-key"})
 
     voice_settings = VoiceSettings(
-        voice_state_path=str(tmp_path / "voice_state.sqlite"), shared_secret="voice-test-secret"
+        voice_state_path=str(tmp_path / "voice_state.sqlite"),
+        shared_secret="voice-test-secret",
+        negotiations_path=str(tmp_path / "negotiations.sqlite"),
     )
     voice_app = create_voice_app(voice_settings, api_client=api_client)
     voice_client = TestClient(voice_app)
@@ -365,3 +367,100 @@ def test_transcript_log_accumulates_every_turn(tmp_path):
     speakers = [t["speaker"] for t in turns]
     assert speakers.count("caller") >= 2
     assert speakers.count("agent") >= 2
+
+
+# --- outbound vendor negotiation ------------------------------------------
+
+
+def test_negotiation_accepted_records_outcome_and_creates_pending_transaction(tmp_path):
+    voice_client, api_client, api_settings, voice_settings = _build(tmp_path)
+
+    r = voice_client.post(
+        "/voice/negotiation/outcome",
+        json={
+            "call_sid": "neg_call_1",
+            "vendor_name": "ABC Traders",
+            "outcome": "accepted",
+            "agreed_amount": 4500,
+            "purpose": "raw materials",
+        },
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "recorded"
+    assert "4500" in r.json()["spoken_text"]
+
+    rows = negotiations.list_outcomes(path=voice_settings.negotiations_path)
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["outcome"] == "accepted"
+    assert row["vendor_name"] == "ABC Traders"
+    assert row["agreed_amount"] == 4500.0
+    assert row["transaction_id"] is not None  # a payment request was created for owner approval
+
+    # the created transaction is genuinely sitting in the owner's approval queue
+    thread_check = api_client.get(f"/requests/{row['transaction_id']}")
+    assert thread_check.status_code == 404  # transaction_id isn't a thread_id — confirms it's a real tx id, not echoed input
+
+
+def test_negotiation_declined_records_outcome_without_creating_transaction(tmp_path):
+    voice_client, api_client, api_settings, voice_settings = _build(tmp_path)
+
+    r = voice_client.post(
+        "/voice/negotiation/outcome",
+        json={"call_sid": "neg_call_2", "vendor_name": "XYZ Corp", "outcome": "declined", "notes": "price too high"},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "recorded"
+
+    rows = negotiations.list_outcomes(path=voice_settings.negotiations_path)
+    assert rows[0]["outcome"] == "declined"
+    assert rows[0]["transaction_id"] is None
+    assert rows[0]["notes"] == "price too high"
+
+
+def test_negotiation_accepted_without_amount_is_rejected(tmp_path):
+    voice_client, api_client, api_settings, voice_settings = _build(tmp_path)
+
+    r = voice_client.post(
+        "/voice/negotiation/outcome",
+        json={"call_sid": "neg_call_3", "vendor_name": "ABC Traders", "outcome": "accepted"},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "error"
+    assert negotiations.list_outcomes(path=voice_settings.negotiations_path) == []
+
+
+def test_negotiation_invalid_outcome_word_is_rejected(tmp_path):
+    voice_client, api_client, api_settings, voice_settings = _build(tmp_path)
+
+    r = voice_client.post(
+        "/voice/negotiation/outcome",
+        json={"call_sid": "neg_call_4", "vendor_name": "ABC Traders", "outcome": "maybe"},
+        headers=AUTH,
+    )
+    assert r.status_code == 200
+    assert r.json()["status"] == "error"
+
+
+def test_negotiation_outcome_requires_auth(tmp_path):
+    voice_client, *_ = _build(tmp_path)
+    r = voice_client.post(
+        "/voice/negotiation/outcome",
+        json={"call_sid": "neg_call_5", "vendor_name": "ABC Traders", "outcome": "declined"},
+    )
+    assert r.status_code == 401
+
+
+def test_negotiation_creates_the_vendor_as_a_new_recipient(tmp_path):
+    voice_client, api_client, api_settings, voice_settings = _build(tmp_path)
+
+    voice_client.post(
+        "/voice/negotiation/outcome",
+        json={"call_sid": "neg_call_6", "vendor_name": "Brand New Vendor", "outcome": "accepted", "agreed_amount": 999},
+        headers=AUTH,
+    )
+    names = {r["name"] for r in recipient_directory.list_all(path=api_settings.recipient_directory_path)}
+    assert "Brand New Vendor" in names
