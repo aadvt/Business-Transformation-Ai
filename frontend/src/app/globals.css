@@ -14,40 +14,38 @@
     ui-monospace, "JetBrains Mono", "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
 
   /* Surfaces — neutral greys, deliberately not blue-shifted */
-  --color-bg: #0a0b0d;
-  --color-surface: #101216;
-  --color-surface-2: #161920;
-  --color-surface-3: #1c2027;
+  --color-bg: #f7f8f7;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f3f2;
+  --color-surface-3: #e8ecea;
 
   /* Borders do the separation work that shadows used to */
-  --color-line: #22262e;
-  --color-line-strong: #2e333d;
+  --color-line: #dce1df;
+  --color-line-strong: #c9d0cd;
 
   /* Text */
-  --color-ink: #e7e9ec;
-  --color-ink-muted: #8f959f;
-  --color-ink-faint: #616773;
+  --color-ink: #1d2623;
+  --color-ink-muted: #5c6863;
+  --color-ink-faint: #86908c;
 
   /* Single brand accent — muted amber, used sparingly */
-  --color-accent: #cf9a37;
-  --color-accent-ink: #171104;
-  --color-accent-dim: #6d5324;
+  --color-accent: #456d5b;
+  --color-accent-ink: #ffffff;
+  --color-accent-dim: #dce9e2;
 
   /* Status — desaturated so a dense grid doesn't turn into a fruit salad */
-  --color-critical: #d8484d;
-  --color-warning: #cf9a37;
-  --color-success: #3f9d70;
-  --color-info: #4d80b8;
-  --color-neutral: #656b76;
+  --color-critical: #b94d52;
+  --color-warning: #aa762f;
+  --color-success: #397558;
+  --color-info: #547899;
+  --color-neutral: #78817d;
 
   --radius-sm: 5px;
   --radius-md: 8px;
   --radius-lg: 10px;
 
-  --shadow-panel: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 1px 2px rgba(0, 0, 0, 0.5),
-    0 8px 20px -10px rgba(0, 0, 0, 0.55);
-  --shadow-panel-hover: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.5),
-    0 14px 28px -12px rgba(0, 0, 0, 0.6);
+  --shadow-panel: 0 1px 2px rgba(23, 37, 30, 0.04);
+  --shadow-panel-hover: 0 4px 10px rgba(23, 37, 30, 0.07);
 }
 
 @layer base {
@@ -207,6 +205,38 @@
 
 .animate-blink {
   animation: status-blink 1.6s ease-in-out infinite;
+}
+
+/* The disrupted vendor node on /command's impact graph (D1) — a subtle
+   scale + glow loop, restrained to match this UI's "no glow" rule elsewhere
+   except where it's the entire point (the one node the room's eye should
+   land on first). */
+@keyframes node-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(216, 72, 77, 0.35);
+  }
+  50% {
+    transform: scale(1.035);
+    box-shadow: 0 0 0 8px rgba(216, 72, 77, 0);
+  }
+}
+
+.animate-node-pulse {
+  animation: node-pulse 1.8s ease-in-out infinite;
+}
+
+/* The candidate rail's hover "ghost edge" (D2) — a travelling dash so the
+   line from card to node reads as a live connection, not a static ruler. */
+@keyframes ghost-dash {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.animate-ghost-dash {
+  animation: ghost-dash 0.6s linear infinite;
 }
 
 .skeleton {

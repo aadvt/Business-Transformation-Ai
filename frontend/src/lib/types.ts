@@ -65,7 +65,16 @@ export type WSEventType =
   | "NEGOTIATION_UPDATE"
   | "SETTLEMENT_STAGED"
   | "FORECAST_ALERT"
-  | "HEARTBEAT";
+  | "HEARTBEAT"
+  | "IMPACT_COMPUTED"
+  | "PLAN_PROPOSED"
+  | "CALL_STARTED"
+  | "CALL_TRANSCRIPT"
+  | "CALL_FIELD_EXTRACTED"
+  | "CALL_ENDED"
+  | "INGEST_PROGRESS"
+  | "BRIEFING_READY"
+  | "AGENT_SHEET_SYNCED";
 
 // ---- Common (backend/app/schemas/common.py) ----
 
@@ -160,6 +169,15 @@ export interface VendorContext {
   memory_source: MemorySource;
 }
 
+export interface AgentSheetSync {
+  status: "SYNCED" | "UNAVAILABLE" | "PENDING";
+  rows_written: number;
+  worksheet: string;
+  synced_at: string;
+  reason?: string;
+  csv_fallback_url?: string;
+}
+
 export interface VendorDue {
   vendor: VendorRef;
   total_due_paise: number;
@@ -210,6 +228,14 @@ export interface CandidateVerification {
   source: string;
 }
 
+export interface CandidateScoreComponents {
+  reliability: number;
+  lead_time: number;
+  price: number;
+  geography: number;
+  relationship: number;
+}
+
 export interface SourcingCandidate {
   vendor_id: string;
   name: string;
@@ -217,6 +243,15 @@ export interface SourcingCandidate {
   verification: CandidateVerification;
   quoted_lead_time_days: number;
   quoted_unit_price_paise: number;
+  // D2 additions for the /command candidate rail — optional so existing
+  // consumers of Disruption.candidates (pre-D2) are unaffected. Provisional
+  // until a real CONTRACT.md documents them (see chat history: no backend
+  // commit for D2 exists yet).
+  distance_km?: number;
+  reliability_score_0_100?: number;
+  languages?: string[];
+  price_delta_pct?: number;
+  score_components?: CandidateScoreComponents;
 }
 
 export interface Approval {
@@ -472,6 +507,21 @@ export interface WSEventPayloads {
   SETTLEMENT_STAGED: { batch_id: string; status: string };
   FORECAST_ALERT: { sku: string; projected_breach_at: string | null };
   HEARTBEAT: Record<string, never>;
+  // Demo-layer (D0+) event payloads. Backend's D0 handoff documented these
+  // shapes (see chat history — CONTRACT.md/openapi.json were reported
+  // updated but as of D1 the repo shows no such commit, no `demo` router,
+  // and `simulate.py` unchanged from Phase 4b). Kept in sync with the
+  // reported shapes anyway since they're more specific than a guess; verify
+  // against a real CONTRACT.md the moment one actually exists.
+  IMPACT_COMPUTED: { node_count: number; impacted_node_ids: string[]; max_severity_state: GraphNodeState };
+  PLAN_PROPOSED: { plan_id: string; changes: { kind: PlanChangeKind; description: string }[] };
+  CALL_STARTED: { call_id: string; vendor_id: string; status: CallStatus };
+  CALL_TRANSCRIPT: { call_id: string; speaker: string; text: string };
+  CALL_FIELD_EXTRACTED: { call_id: string; field: string; value: string | number };
+  CALL_ENDED: { call_id: string; status: CallStatus; duration_seconds: number };
+  INGEST_PROGRESS: { ingest_id: string; status: IngestStatus; progress_pct: number };
+  BRIEFING_READY: { vendor_id: string; briefing: string };
+  AGENT_SHEET_SYNCED: AgentSheetSync;
 }
 
 export interface WSEvent<T extends WSEventType = WSEventType> {
@@ -521,4 +571,227 @@ export function isTerminalStage(stage: DisruptionStage): boolean {
 
 export function isFailedStage(stage: DisruptionStage): boolean {
   return stage === "REJECTED" || stage === "FAILED";
+}
+
+// ---- Demo layer (D0-D7) — UI-only additions ahead of the backend, which is
+// building to these shapes in parallel. Provisional until backend's
+// CONTRACT.md update lands; treat field names as likely-stable, not final. ----
+
+export type GraphNodeKind = "VENDOR" | "ITEM" | "LINE" | "ORDER" | "PLANT";
+
+export type GraphNodeState = "HEALTHY" | "AT_RISK" | "IMPACTED" | "SUBSTITUTED";
+
+export type ScenarioKind = "BACKED_OUT" | "PRICE_HIKE" | "DELAYED" | "SHUT_DOWN";
+
+export type CallStatus = "DIALING" | "CONNECTED" | "NEGOTIATING" | "CONFIRMED" | "FAILED" | "ENDED";
+
+export type PlanChangeKind = "SPLIT_ORDER" | "SWITCH_VENDOR" | "PULL_FORWARD_STOCK" | "REDUCE_QUANTITY" | "EXPEDITE_FREIGHT";
+
+export type IngestStatus = "QUEUED" | "PARSING" | "RESOLVED" | "FAILED";
+
+export interface GraphNode {
+  id: string;
+  kind: GraphNodeKind;
+  label: string;
+  state: GraphNodeState;
+  layer: number;
+  badges: string[];
+  detail?: Record<string, unknown>;
+}
+
+export interface GraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  state: GraphNodeState;
+  weight?: number;
+}
+
+export interface ImpactGraph {
+  disruption_id: string;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  summary: {
+    impacted_node_count: number;
+    at_risk_order_count: number;
+    exposure_paise: number;
+    exposure_display: string;
+    tier: string;
+  };
+}
+
+export interface SimulateTarget {
+  vendor_id: string;
+  name: string;
+  category: string;
+  open_po_count: number;
+  downstream_line_count: number;
+  est_exposure_paise: number;
+  recommended_kinds: ScenarioKind[];
+}
+
+export interface DemoState {
+  stage_counts: Record<string, number>;
+  integrations: Record<string, string>;
+  ttm_loaded: boolean;
+  ws_clients: number;
+  db_roundtrip_ms: number;
+}
+
+// Request/response pair for the new vendor+kind simulate flow — not given
+// literally in the D0 brief, but api.ts's `simulateDisruption(body)` needs a
+// typed body/response, and this is the shape implied by `SimulateTarget` +
+// `ScenarioKind`. Confirm against backend's CONTRACT.md once it lands.
+export interface SimulateDisruptionRequest {
+  vendor_id: string;
+  kind: ScenarioKind;
+  effective_date: string;
+}
+
+export interface SimulateDisruptionResponse {
+  disruption_id: string;
+  stage: DisruptionStage;
+}
+
+// ---- Public vendor directory (D2) — unauthenticated endpoints, separate
+// from the ops dashboard's /vendors. Provisional pending a real CONTRACT.md
+// for these; no backend commit for D2 exists yet (see chat history). ----
+
+export interface VerificationEvidence {
+  gstin_structure_valid: boolean;
+  gstin_checksum_valid: boolean;
+  state_code: string | null;
+  state_code_resolved: boolean;
+  udyam_format_valid: boolean;
+  source: string;
+  checked_at: string;
+}
+
+export interface PublicVendor {
+  id: string;
+  name: string;
+  category: string;
+  city: string;
+  state: string;
+  pincode: string;
+  distance_km: number | null;
+  lead_time_days: number;
+  capacity_units_per_month: number;
+  reliability_score_0_100: number;
+  languages: string[];
+  verified: boolean;
+  gstin_masked: string;
+}
+
+export interface PublicVendorList {
+  items: PublicVendor[];
+  total: number;
+}
+
+export interface PublicVendorDetail extends PublicVendor {
+  verification: VerificationEvidence;
+  reliability: Reliability;
+  orders_completed: number;
+}
+
+export interface PublicVendorSearchParams {
+  category?: string;
+  pincode?: string;
+  radius_km?: number;
+  max_lead_time_days?: number;
+  min_capacity?: number;
+  languages?: string[];
+  verified?: boolean;
+}
+
+export interface VendorRegistrationRequest {
+  name: string;
+  category: string;
+  gstin: string;
+  udyam_number?: string;
+  phone: string;
+  languages: string[];
+  city: string;
+  state: string;
+  pincode: string;
+  capacity_units_per_month: number;
+  lead_time_days: number;
+}
+
+export interface VendorRegistrationResponse {
+  vendor: PublicVendorDetail;
+}
+
+// ---- Plan diff (D3) — the CP-SAT (or greedy-fallback) sourcing plan shown
+// on /command after PLAN_PROPOSED. Provisional pending a real CONTRACT.md;
+// PLAN_PROPOSED's WS payload (see WSEventPayloads above) only carries a
+// plan_id + a summary of changes, so the full Plan is fetched separately,
+// same pattern as ImpactGraph after IMPACT_COMPUTED. ----
+
+export interface PlanRowItem {
+  vendor_id: string;
+  vendor_name: string;
+  item: string;
+  qty: number;
+  unit_price_paise: number;
+  unit_price_display: string;
+  lead_time_days: number;
+  eta: string;
+}
+
+export interface PlanChangeDetail {
+  id: string;
+  kind: PlanChangeKind;
+  description: string;
+  rationale: string;
+  // Both sides of the diff for this change. SPLIT_ORDER: 1 current -> 2
+  // proposed. SWITCH_VENDOR/REDUCE_QUANTITY/EXPEDITE_FREIGHT: 1 -> 1.
+  // PULL_FORWARD_STOCK: 0 current -> 1 proposed (an internal action, not a
+  // purchase — no left-hand counterpart by design).
+  current: PlanRowItem[];
+  proposed: PlanRowItem[];
+}
+
+export type SolverName = "OR_TOOLS_CP_SAT" | "GREEDY_FALLBACK";
+
+export interface Plan {
+  id: string;
+  disruption_id: string;
+  changes: PlanChangeDetail[];
+  exposure_before_paise: number;
+  exposure_before_display: string;
+  exposure_after_paise: number;
+  exposure_after_display: string;
+  cost_to_resolve_paise: number;
+  cost_to_resolve_display: string;
+  net_saving_paise: number;
+  net_saving_display: string;
+  requires_escalation: boolean;
+  escalation_reason: string | null;
+  solver: SolverName;
+  solve_ms: number;
+}
+
+// ---- Phone mock (D4) — GET /api/v1/phone/messages backing the WhatsApp Web
+// mock at /phone. Provisional pending a real CONTRACT.md. ----
+
+export type PhoneMessageKind = "TEXT" | "APPROVAL_CARD" | "SYSTEM";
+
+export interface PhoneMessage {
+  id: string;
+  kind: PhoneMessageKind;
+  from: "AGENT" | "OWNER";
+  text: string | null;
+  at: string;
+  // Present when kind === "APPROVAL_CARD".
+  approval_id?: string;
+  disruption_id?: string;
+  headline?: string;
+  exposure_display?: string;
+  plan_summary?: string[];
+  status?: ApprovalStatus;
+}
+
+export interface PhoneMessagesResponse {
+  items: PhoneMessage[];
 }

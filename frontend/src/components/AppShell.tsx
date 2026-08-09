@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ChevronsUpDown, LayoutGrid, LogOut, Network, Settings, User, Wallet, Workflow } from "lucide-react";
+import { Activity, Bell, Building2, ChevronsUpDown, LayoutGrid, LogOut, Settings, User, Wallet } from "lucide-react";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 import { useDisruptions } from "@/lib/queries";
 import { useLiveFeed } from "@/lib/live";
 import { Toaster } from "@/components/ui/sonner";
+import DemoControlBar from "@/components/DemoControlBar";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -20,10 +21,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const NAV_ITEMS = [
-  { href: "/", label: "War Room", icon: LayoutGrid },
-  { href: "/waterfall", label: "Pipeline", icon: Workflow },
-  { href: "/settlement", label: "Settlement", icon: Wallet },
-  { href: "/network", label: "Network", icon: Network },
+  { href: "/", label: "Main dashboard", icon: LayoutGrid },
+  { href: "/settlement", label: "Transactions", icon: Wallet },
+  { href: "/directory", label: "Vendors", icon: Building2 },
+  { href: "/waterfall", label: "Updates", icon: Bell },
 ];
 
 const CONNECTION = {
@@ -52,7 +53,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <div className="px-4 pt-4 pb-2">
-            <span className="eyebrow">Operations</span>
+            <span className="eyebrow">Workspace</span>
           </div>
 
           <nav className="flex-1 space-y-0.5 px-2">
@@ -149,6 +150,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
         </div>
       </div>
       <Toaster position="top-right" />
+      <DemoControlBar />
     </TooltipProvider>
   );
 }

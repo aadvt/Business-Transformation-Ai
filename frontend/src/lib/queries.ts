@@ -2,12 +2,12 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./api";
-import type { ApprovalDecision, Channel, DisruptionStage } from "./types";
+import type { ApprovalDecision, Channel, DisruptionStage, PublicVendorSearchParams } from "./types";
 
 // Demo-mode actor identities — there's no auth/session system in the
 // contract-and-mocks phase, so these match the example values used
 // throughout backend/CONTRACT.md's fixtures.
-const WEB_APPROVER = "priya.sharma@mahe-industries.in";
+export const WEB_APPROVER = "priya.sharma@mahe-industries.in";
 const FINANCE_OPS = "finance.ops@mahe-industries.in";
 
 export const queryKeys = {
@@ -18,6 +18,11 @@ export const queryKeys = {
   vendorDues: ["vendorDues"] as const,
   dashboardSummary: ["dashboardSummary"] as const,
   settlementBatches: (month?: string) => ["settlementBatches", month ?? "all"] as const,
+  simulateTargets: ["simulateTargets"] as const,
+  impact: (disruptionId: string) => ["impact", disruptionId] as const,
+  publicVendors: (params: PublicVendorSearchParams) => ["publicVendors", params] as const,
+  publicVendor: (id: string) => ["publicVendor", id] as const,
+  phoneMessages: ["phoneMessages"] as const,
 };
 
 export function useAgentsStatus() {
@@ -69,6 +74,52 @@ export function useSettlementBatches(month?: string) {
   return useQuery({
     queryKey: queryKeys.settlementBatches(month),
     queryFn: () => api.listSettlementBatches({ month }),
+  });
+}
+
+export function useSimulateTargets() {
+  return useQuery({
+    queryKey: queryKeys.simulateTargets,
+    queryFn: api.getSimulateTargets,
+  });
+}
+
+export function useSimulateDisruption() {
+  return useMutation({
+    mutationFn: api.simulateDisruption,
+  });
+}
+
+export function usePublicVendors(params: PublicVendorSearchParams) {
+  return useQuery({
+    queryKey: queryKeys.publicVendors(params),
+    queryFn: () => api.listPublicVendors(params),
+  });
+}
+
+export function usePublicVendor(id: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.publicVendor(id ?? ""),
+    queryFn: () => api.getPublicVendor(id as string),
+    enabled: Boolean(id),
+  });
+}
+
+export function usePhoneMessages() {
+  return useQuery({
+    queryKey: queryKeys.phoneMessages,
+    queryFn: api.getPhoneMessages,
+    refetchInterval: 5000,
+  });
+}
+
+export function useRegisterVendor() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.registerVendor,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["publicVendors"] });
+    },
   });
 }
 

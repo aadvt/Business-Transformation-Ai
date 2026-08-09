@@ -39,7 +39,7 @@ const SEVERITY_SPEED: Record<SeverityTier, number> = {
 };
 
 const PLANT_COLOR = 0xcf9a37;
-const OUTLINE_COLOR = 0x0a0b0d;
+const OUTLINE_COLOR = 0xffffff;
 
 // Mercator units — the whole world is 1.0 wide, so these are deliberately
 // tiny. Markers are flat discs sized to read as city dots.
@@ -143,7 +143,7 @@ export default function NetworkMap() {
     mapboxgl.accessToken = MAPBOX_TOKEN;
     const map = new mapboxgl.Map({
       container: containerRef.current,
-      style: "mapbox://styles/mapbox/dark-v11",
+      style: "mapbox://styles/mapbox/light-v11",
       center: MAP_CENTER,
       zoom: MAP_ZOOM,
       pitch: 40,
