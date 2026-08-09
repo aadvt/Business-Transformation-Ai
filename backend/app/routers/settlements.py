@@ -1,139 +1,118 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db import get_db
-from app.db_models import SettlementBatch as SettlementBatchRow
+from app.constants import DEFAULT_ORG_ID
+from app.db.session import get_session
 from app.deps import require_api_key
-from app.idempotency import get_cached_response, store_response
+from app.mocks.loader import store
+from app.repositories import settlements as repo
 from app.schemas.enums import WSEventType
-from app.schemas.money import format_inr, utc_now
+from app.schemas.money import utc_now_iso
 from app.schemas.settlement import (
-    SettlementBatch,
     SettlementBatchList,
     SettlementConfirmRequest,
     SettlementConfirmResponse,
     SettlementExecuteRequest,
     SettlementExecuteResponse,
-    SettlementLine,
 )
-from app.schemas.vendors import VendorRef
 from app.transaction_agent_client import stage_settlement_batch
 from app.ws_manager import live_feed
 
 router = APIRouter(prefix="/api/v1", tags=["settlements"], dependencies=[Depends(require_api_key)])
 
 
-def _to_settlement_batch(b: SettlementBatchRow) -> SettlementBatch:
-    # settlement_batches has no created_at/updated_at columns — staged_at is
-    # the closest thing to "created", and "updated" is whichever of
-    # staged/approved/confirmed happened most recently.
-    timestamps = [t for t in (b.staged_at, b.approved_at, b.confirmed_at) if t is not None]
-    updated_at = max(timestamps) if timestamps else b.staged_at
-
-    return SettlementBatch(
-        id=b.id,
-        created_at=b.staged_at.isoformat(),
-        updated_at=updated_at.isoformat(),
-        month=b.period_month,
-        status=b.status,
-        total_paise=b.total_paise,
-        total_display=format_inr(b.total_paise),
-        lines=[
-            SettlementLine(
-                vendor=VendorRef(id=item.vendor.id, name=item.vendor.name, gstin=item.vendor.gstin),
-                invoice_id=item.reference,
-                amount_paise=item.amount_paise,
-                amount_display=format_inr(item.amount_paise),
-                due_date=item.due_date.isoformat() if item.due_date else "",
-            )
-            for item in b.items
-        ],
-        confirmed_at=b.confirmed_at.isoformat() if b.confirmed_at else None,
-        # No separate confirmed_by column — approved_by is populated by the
-        # confirm endpoint below regardless of whether a distinct "approve"
-        # step ever ran, so it's the right source for "who confirmed this".
-        confirmed_by=b.approved_by,
-    )
-
-
-async def _get_batch(db: AsyncSession, batch_id: str) -> SettlementBatchRow | None:
-    stmt = (
-        select(SettlementBatchRow)
-        .where(SettlementBatchRow.id == batch_id)
-        .options(selectinload(SettlementBatchRow.items))
-    )
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
-@router.post("/settlements/{batch_id}/execute", response_model=SettlementExecuteResponse)
-async def execute_settlement(
-    batch_id: str, body: SettlementExecuteRequest, db: AsyncSession = Depends(get_db)
-) -> SettlementExecuteResponse:
-    cached = await get_cached_response(db, body.idempotency_key)
+async def _execute_mock(batch_id: str, body: SettlementExecuteRequest) -> tuple[SettlementExecuteResponse, bool]:
+    cached = store.settlement_execute_idempotency.get(body.idempotency_key)
     if cached is not None:
-        return SettlementExecuteResponse.model_validate(cached)
+        return SettlementExecuteResponse.model_validate(cached), True
 
-    batch = await _get_batch(db, batch_id)
+    batch = store.settlement_batches.get(batch_id)
     if batch is None:
         raise HTTPException(status_code=404, detail="Settlement batch not found")
 
     batch.status = "EXECUTING"
-    await db.commit()
+    batch.updated_at = utc_now_iso()
 
-    response_batch = _to_settlement_batch(batch)
-    handoff = await stage_settlement_batch(response_batch, requested_by=body.executed_by)
+    handoff = await stage_settlement_batch(batch, requested_by=body.executed_by)
 
-    response = SettlementExecuteResponse(batch=response_batch, transaction_agent=handoff)
-    await store_response(db, body.idempotency_key, "POST /settlements/{id}/execute", response.model_dump())
+    response = SettlementExecuteResponse(batch=batch, transaction_agent=handoff)
+    store.settlement_execute_idempotency[body.idempotency_key] = response.model_dump()
+    return response, False
 
-    await live_feed.broadcast(
-        WSEventType.SETTLEMENT_STAGED,
-        payload={"batch_id": batch_id, "status": batch.status, "executed_by": body.executed_by},
-    )
+
+@router.post("/settlements/{batch_id}/execute", response_model=SettlementExecuteResponse)
+async def execute_settlement(
+    batch_id: str, body: SettlementExecuteRequest, session: Session = Depends(get_session)
+) -> SettlementExecuteResponse:
+    if settings.use_mocks:
+        response, is_replay = await _execute_mock(batch_id, body)
+    else:
+        response, is_replay = repo.execute_batch(session, batch_id, body.idempotency_key, body.executed_by, DEFAULT_ORG_ID)
+        if response is None:
+            raise HTTPException(status_code=404, detail="Settlement batch not found")
+        # repo.execute_batch is sync (Session, not AsyncSession) and its
+        # idempotency cache is written before this — the transaction-agent
+        # handoff deliberately sits outside that cache and only fires on a
+        # genuine first execution, same as the mock path below, since
+        # transaction-agent's own POST /requests has no idempotency key and
+        # would open a new thread on every replay otherwise.
+        if not is_replay:
+            handoff = await stage_settlement_batch(response.batch, requested_by=body.executed_by)
+            response = SettlementExecuteResponse(batch=response.batch, transaction_agent=handoff)
+
+    if not is_replay:
+        await live_feed.broadcast(
+            WSEventType.SETTLEMENT_STAGED,
+            payload={"batch_id": batch_id, "status": response.batch.status, "executed_by": body.executed_by},
+        )
     return response
 
 
 @router.get("/settlement/batch", response_model=SettlementBatchList)
-async def get_settlement_batches(
-    month: str | None = Query(default=None), db: AsyncSession = Depends(get_db)
-) -> SettlementBatchList:
-    stmt = (
-        select(SettlementBatchRow)
-        .where(SettlementBatchRow.org_id == settings.org_id)
-        .options(selectinload(SettlementBatchRow.items))
-    )
-    if month:
-        stmt = stmt.where(SettlementBatchRow.period_month == month)
-    rows = (await db.execute(stmt)).scalars().all()
-    items = [_to_settlement_batch(b) for b in rows]
-    return SettlementBatchList(items=items, total=len(items))
+def get_settlement_batches(month: str | None = Query(default=None), session: Session = Depends(get_session)) -> SettlementBatchList:
+    if settings.use_mocks:
+        items = list(store.settlement_batches.values())
+        if month:
+            items = [b for b in items if b.month == month]
+        return SettlementBatchList(items=items, total=len(items))
+    return repo.list_batches(session, month)
+
+
+def _confirm_mock(batch_id: str, body: SettlementConfirmRequest) -> tuple[SettlementConfirmResponse, bool]:
+    cached = store.settlement_confirm_idempotency.get(body.idempotency_key)
+    if cached is not None:
+        return SettlementConfirmResponse.model_validate(cached), True
+
+    batch = store.settlement_batches.get(batch_id)
+    if batch is None:
+        raise HTTPException(status_code=404, detail="Settlement batch not found")
+
+    now = utc_now_iso()
+    batch.status = "CONFIRMED"
+    batch.confirmed_at = now
+    batch.confirmed_by = body.confirmed_by
+    batch.updated_at = now
+
+    response = SettlementConfirmResponse(batch=batch)
+    store.settlement_confirm_idempotency[body.idempotency_key] = response.model_dump()
+    return response, False
 
 
 @router.post("/settlement/{batch_id}/confirm", response_model=SettlementConfirmResponse)
 async def confirm_settlement(
-    batch_id: str, body: SettlementConfirmRequest, db: AsyncSession = Depends(get_db)
+    batch_id: str, body: SettlementConfirmRequest, session: Session = Depends(get_session)
 ) -> SettlementConfirmResponse:
-    cached = await get_cached_response(db, body.idempotency_key)
-    if cached is not None:
-        return SettlementConfirmResponse.model_validate(cached)
+    if settings.use_mocks:
+        response, is_replay = _confirm_mock(batch_id, body)
+    else:
+        response, is_replay = repo.confirm_batch(session, batch_id, body.idempotency_key, body.confirmed_by, DEFAULT_ORG_ID)
+        if response is None:
+            raise HTTPException(status_code=404, detail="Settlement batch not found")
 
-    batch = await _get_batch(db, batch_id)
-    if batch is None:
-        raise HTTPException(status_code=404, detail="Settlement batch not found")
-
-    batch.status = "CONFIRMED"
-    batch.confirmed_at = utc_now()
-    batch.approved_by = body.confirmed_by
-    await db.commit()
-
-    response = SettlementConfirmResponse(batch=_to_settlement_batch(batch))
-    await store_response(db, body.idempotency_key, "POST /settlement/{id}/confirm", response.model_dump())
-
-    await live_feed.broadcast(
-        WSEventType.SETTLEMENT_STAGED,
-        payload={"batch_id": batch_id, "status": batch.status, "confirmed_by": body.confirmed_by},
-    )
+    if not is_replay:
+        await live_feed.broadcast(
+            WSEventType.SETTLEMENT_STAGED,
+            payload={"batch_id": batch_id, "status": response.batch.status, "confirmed_by": body.confirmed_by},
+        )
     return response

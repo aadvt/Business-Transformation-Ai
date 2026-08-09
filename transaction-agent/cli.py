@@ -13,23 +13,25 @@ Usage:
                                         # after this process previously exited
     python cli.py --resume             # continue the most recently started thread
 
-Checkpoints are persisted to SQLite (--checkpoint-db, default
-checkpoints.sqlite), so a pending approval survives the process restarting.
+Checkpoints (and every other store) live in Neon Postgres automatically
+when DATABASE_URL / DATABASE_URL_DIRECT are set (see .env.example);
+otherwise everything falls back to local SQLite/JSON files
+(--checkpoint-db, default checkpoints.sqlite) — either way, a pending
+approval survives the process restarting.
 """
 
 from __future__ import annotations
 
 import argparse
 import getpass
-import sqlite3
 import sys
 import uuid
 from pathlib import Path
 
 from dotenv import load_dotenv
-from langgraph.checkpoint.sqlite import SqliteSaver
 from langgraph.types import Command
 
+from transaction_agent.checkpointer import open_checkpointer
 from transaction_agent.graph import build_graph
 from transaction_agent.llm import WatsonxConfigError, check_env
 
@@ -54,10 +56,13 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         metavar="THREAD_ID",
         help="Continue a paused approval. Omit the id to resume the most recently started thread.",
     )
-    parser.add_argument("--audit-path", default=None, help="Path to the persistent audit log JSON file")
-    parser.add_argument("--checkpoint-db", default="checkpoints.sqlite", help="SQLite file for graph checkpoints")
-    parser.add_argument("--recipient-directory", default=None, help="SQLite file for the recipient directory")
-    parser.add_argument("--users-db", default=None, help="SQLite file for the local approver user table")
+    parser.add_argument("--audit-path", default=None, help="Path (or Postgres DSN) for the persistent audit log")
+    parser.add_argument(
+        "--checkpoint-db", default="checkpoints.sqlite", help="SQLite fallback file for graph checkpoints"
+    )
+    parser.add_argument("--checkpoint-dsn", default=None, help="Postgres DSN for checkpoints (default: $DATABASE_URL_DIRECT)")
+    parser.add_argument("--recipient-directory", default=None, help="Path (or Postgres DSN) for the recipient directory")
+    parser.add_argument("--users-db", default=None, help="Path (or Postgres DSN) for the local approver user table")
     return parser.parse_args(argv)
 
 
@@ -159,9 +164,8 @@ def run(argv: list[str]) -> int:
             print(str(exc), file=sys.stderr)
             return 1
 
-    conn = sqlite3.connect(args.checkpoint_db, check_same_thread=False)
-    saver = SqliteSaver(conn)
-    saver.setup()
+    checkpointer_kwargs = {"postgres_dsn": args.checkpoint_dsn} if args.checkpoint_dsn else {}
+    conn, saver = open_checkpointer(args.checkpoint_db, **checkpointer_kwargs)
 
     build_kwargs = {"checkpointer": saver}
     if args.audit_path:

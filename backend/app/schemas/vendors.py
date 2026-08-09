@@ -18,7 +18,6 @@ class Vendor(Envelope):
     gstin: str
     udyam_number: str | None = None
     phone: str
-    email: str | None = None
     languages: list[str] = Field(default_factory=list)
     city: str
     state: str
@@ -28,13 +27,6 @@ class Vendor(Envelope):
     on_time_rate: float
     orders_completed: int
     disputes: int
-    # Real columns with no mock-phase equivalent — additive, not required by
-    # existing frontend code.
-    avg_lead_time_days: float | None = None
-    is_backup_pool: bool | None = None
-    payment_terms_days: int | None = None
-    # Derived, not stored: SUM of not-yet-confirmed settlement_items for
-    # this vendor. See app/routers/vendors.py.
     dues_paise: int
     dues_display: str
 

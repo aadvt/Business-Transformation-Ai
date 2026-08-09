@@ -1,5 +1,11 @@
 # Sanjeevani Backend — API Contract
 
+**This document is unchanged since Phase 1.** Phase 2 swapped the data source
+(JSON fixtures → Neon Postgres, `USE_MOCKS=true` keeps the old fixture path as
+a fallback) but every endpoint, request/response shape, and status code below
+is identical — that was the explicit constraint. Example payloads below now
+reflect real seeded data (see `app/seed.py`) rather than static fixtures.
+
 Base URL (dev): `http://localhost:8000`
 All routes are versioned under `/api/v1`. Auth: optional `X-API-Key` header (see
 README — off by default in dev). Full interactive docs at `/docs`.
@@ -10,15 +16,6 @@ README — off by default in dev). Full interactive docs at `/docs`.
 - Timestamps → UTC ISO-8601, fields suffixed `_at`.
 - IDs → string UUIDv4.
 - Every domain object includes `id`, `created_at`, `updated_at`.
-
-**Persistence** (as of 2026-08-09): every endpoint below is backed by a real
-Neon Postgres database, not fixtures — except `GET /forecast/{sku}` and part
-of `GET /vendors/{id}/context`, called out where they appear. This section
-also flags every field that's *derived* (computed at query time, not a
-straight column) or *reshaped* (the DB stores it differently than this
-contract exposes it) — worth knowing if you're debugging a value that looks
-right but doesn't match what you'd expect from the schema directly. See
-`CLAUDE.md`'s "Database layer" section for the SQLAlchemy-level details.
 
 ---
 
@@ -44,11 +41,6 @@ Returns the current status of every agent.
 
 `name` ∈ `SENTINEL | DIAGNOSIS | SOURCING | NEGOTIATION | SETTLEMENT | GOVERNANCE`
 `status` ∈ `IDLE | RUNNING | DONE | BLOCKED | ERROR`
-
-**Derived**: there's no "current status" table — this is the most recent
-`agent_runs` row per agent name. That table has no writer yet (no real
-agent execution logic exists), so every agent honestly reports `IDLE` with
-`current_task: null` until it does.
 
 ---
 
@@ -157,25 +149,6 @@ Full disruption detail — the richest object in the system. 404 if not found.
 `detector_source` ∈ `RULE_BASED | TTM_FORECAST` — which mechanism raised the signal.
 `approval` and `negotiation` are `null` until that stage is reached.
 
-**Reshaped**: `disruption_events` stores `diagnosis`/`exposure`/`approval`/
-`negotiation` as flat columns and separate joined tables, not this nested
-shape — reassembled at read time (`app/routers/disruptions.py`) so the
-contract doesn't change. Two things worth knowing if you're comparing
-against the DB directly:
-- **`timeline` is reconstructed**, not stored — one entry per non-null
-  stage-transition timestamp column on `disruption_events` (`detected_at`,
-  `diagnosed_at`, `sourced_at`, `approval_requested_at`, `approved_at`,
-  `negotiation_started_at`, `negotiated_at`, `settlement_staged_at`,
-  `settled_at`), in that order. There's no separate "rejected" timeline
-  entry — a `REJECTED` stage just has no further timestamps.
-- **`diagnosis.root_cause` is `"UNKNOWN"` before diagnosis happens**
-  (DB `root_cause` column is null pre-`DIAGNOSED`) rather than the whole
-  `diagnosis` object being absent — `RootCause` already has an `UNKNOWN`
-  member, so the object shape never needs to become optional.
-- **`candidates[].verification` falls back to `UNAVAILABLE`** (all three
-  status fields) if no matching `verifications` row exists for that
-  `(disruption_id, vendor_id)` pair yet.
-
 ---
 
 ### `GET /api/v1/vendors?search=&limit=`
@@ -203,9 +176,6 @@ against the DB directly:
       "on_time_rate": 0.91,
       "orders_completed": 214,
       "disputes": 3,
-      "avg_lead_time_days": 3.2,
-      "is_backup_pool": false,
-      "payment_terms_days": 30,
       "dues_paise": 184500000,
       "dues_display": "₹18,45,000"
     }
@@ -214,25 +184,13 @@ against the DB directly:
 }
 ```
 
-`email`, `avg_lead_time_days`, `is_backup_pool`, `payment_terms_days` are
-real columns with no mock-phase equivalent — additive, optional to consume.
-
-**Derived**: `dues_paise`/`dues_display` aren't stored on `vendors` at all —
-computed as `SUM(settlement_items.amount_paise)` for that vendor where
-`status != 'CONFIRMED'`, i.e. still-owed invoice lines. `0` is the honest
-answer whenever every settlement item for a vendor has already been
-confirmed. `lat`/`lng` aren't stored either — the vendors table has no
-coordinate columns, so these are city-center approximations for the small,
-known set of cities real vendor rows are in (`app/routers/vendors.py`).
-
 ### `GET /api/v1/vendors/{id}`
 
 Same shape as one item above. 404 if not found.
 
 ### `GET /api/v1/vendors/dues`
 
-Aggregated dues across all vendors with `dues_paise > 0`. Same derivation
-as above, just as the primary response instead of embedded per-vendor.
+Aggregated dues across all vendors with `dues_paise > 0`.
 
 ```json
 {
@@ -349,38 +307,16 @@ Full agent-action audit trail for a disruption. 404 if the disruption doesn't ex
   "entries": [
     {
       "id": "c6d35d39-...",
-      "at": "2026-08-07T00:47:35+00:00",
-      "actor_type": "AGENT",
-      "actor": "SENTINEL",
+      "at": "2026-08-07T03:12:00+00:00",
       "agent": "SENTINEL",
       "action": "SIGNAL_RAISED",
-      "detail": {},
-      "prev_hash": "0000...",
-      "hash": "a1b2..."
-    },
-    {
-      "id": "8f2a...",
-      "at": "2026-08-07T01:57:35+00:00",
-      "actor_type": "HUMAN",
-      "actor": "priya.sharma@shakti-auto.in",
-      "agent": null,
-      "action": "APPROVAL_DECIDED",
-      "detail": {}
+      "detail": "Carrier tracking gap exceeded 12h threshold",
+      "input_summary": "GPS ping stream for shipment SHP-88213",
+      "output_summary": "DELIVERY_DELAY disruption opened"
     }
   ]
 }
 ```
-
-**Reshaped**: the real schema correctly splits what this used to lump into
-one `AuditEntry` shape. `audit_log` is the governance/decision trail —
-`actor_type`/`actor` cover human actions too (not just agents), and it's
-**hash-chained** (`prev_hash`/`hash`) for tamper-evidence. `agent_runs` is
-separate agent-execution telemetry (`input_summary`/`output_summary`,
-`latency_ms`, `token_usage` inside `detail`). This endpoint merges both
-chronologically into one timeline. `agent` is populated only when
-`actor_type == "AGENT"` (and the actor string maps to a known `AgentName`);
-`prev_hash`/`hash` are only present on `audit_log`-sourced entries, not
-`agent_runs`-sourced ones.
 
 ---
 
@@ -404,21 +340,12 @@ chronologically into one timeline. `agent` is populated only when
   "integrations": {
     "watsonx": "STUB", "guardian": "STUB", "supermemory": "STUB",
     "verification": "STUB", "ttm": "STUB",
-    "orchestrate": "NOT_CONFIGURED", "neon": "LIVE"
+    "orchestrate": "NOT_CONFIGURED", "neon": "NOT_CONFIGURED"
   }
 }
 ```
 
 Each integration value ∈ `LIVE | STUB | UNAVAILABLE | NOT_CONFIGURED`.
-`neon` is `LIVE` because it's the real datastore behind this response.
-
-**Derived**: `totals` is computed from real `disruption_events`/
-`exposure_calcs` rows, not a fixture — expect small, honest numbers rather
-than demo-scale ones. `latency.end_to_end_seconds` comes from
-`agent_runs.latency_ms` where it exists; the other three latency buckets
-(`detection_to_alert`, `alert_to_decision`, `decision_to_negotiated`) don't
-have a real source yet (no agent execution logic exists) and are
-zero-filled rather than estimated from stage timestamps.
 
 ---
 
@@ -444,6 +371,39 @@ zero-filled rather than estimated from stage timestamps.
 ### `WS /api/v1/live`
 
 See the [WebSocket event catalogue](#websocket-event-catalogue) below.
+
+---
+
+### `POST /api/v1/disruptions/simulate` (dev-only, Phase 4a)
+
+Not part of the stable contract — a demo/dev trigger, gated on `DEMO_MODE`
+(default on; 404s when off in a real deployment). Runs Sentinel against the
+named seeded golden-path scenario, then the Diagnosis and Sourcing agents,
+stopping at `AWAITING_APPROVAL` (the human gate — see `CLAUDE.md`'s
+orchestrator section).
+
+**Request:** `{ "scenario": "delivery_delay_castings" }`
+
+**Response:**
+```json
+{
+  "disruption_id": "3b0b46e1-...",
+  "scenario": "delivery_delay_castings",
+  "stage": "AWAITING_APPROVAL",
+  "newly_triggered": true
+}
+```
+
+`newly_triggered` is `false` if the scenario's disruption had already
+progressed past `DETECTED` from an earlier call — the endpoint just reports
+its current stage rather than re-running the pipeline. 400 for an unknown
+scenario name; 404 if the seed vendor is missing (reseed with
+`python -m app.seed --reset`); 422 if Sentinel didn't detect the expected
+signal (the golden-path seed data may already be consumed by a prior run).
+
+Follow up with `GET /api/v1/disruptions/{disruption_id}` to see the full
+result — real exposure breakdown, diagnosis, ranked+verified candidates, and
+timeline, all produced by the agents in `app/agents/`.
 
 ---
 
@@ -473,15 +433,6 @@ unavailable.
 Constraints the voice agent can rely on: `history_summary` ≤ 400 chars, plain
 prose, no markdown. `briefing` ≤ 300 chars, one sentence, speakable as-is.
 `memory_source` ∈ `SUPERMEMORY | DB_ONLY | UNAVAILABLE`.
-
-**Hybrid, deliberately**: `vendor`/`reliability` are real (`vendors` table);
-`last_terms` is the vendor's most recent negotiation with agreed terms if
-one exists in `negotiations`, falling back to the fixture value otherwise.
-`history_summary`/`briefing`/`guardrails` stay fixture-backed — they need
-real LLM-generated narrative or real business-policy config, neither of
-which exists as stored data. Only the 5 vendors from the original mock
-fixtures have a fixture entry at all; other real vendors 404 here until
-that narrative exists for them.
 
 ---
 
@@ -555,15 +506,6 @@ on `idempotency_key`.
 Idempotent on `idempotency_key`. Note this path is singular (`/settlement/`)
 while the execute endpoint above is plural (`/settlements/`) — that's the
 locked contract, not a typo; see `CLAUDE.md`.
-
-**Reshaped**: `settlement_batches` has no `created_at`/`updated_at`/
-`confirmed_by` columns — `created_at` is derived from `staged_at`,
-`updated_at` is whichever of `staged_at`/`approved_at`/`confirmed_at` is
-most recent, and `confirmed_by` is sourced from the real `approved_by`
-column (there's a separate `approved_at` too, distinct from `confirmed_at`
-— this endpoint only ever sets `confirmed_at`, not `approved_at`).
-`invoice_id` is sourced from `settlement_items.reference`, the closest
-existing concept to an invoice id.
 
 ---
 

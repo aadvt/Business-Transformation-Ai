@@ -13,12 +13,12 @@
     "disruptions_closed": 27
   },
   "integrations": {
-    "watsonx": "STUB",
+    "watsonx": "LIVE",
     "guardian": "STUB",
     "supermemory": "STUB",
     "verification": "STUB",
-    "ttm": "STUB",
+    "ttm": "NOT_CONFIGURED",
     "orchestrate": "NOT_CONFIGURED",
-    "neon": "NOT_CONFIGURED"
+    "neon": "LIVE"
   }
 }

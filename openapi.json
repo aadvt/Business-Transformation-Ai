@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sanjeevani Backend",
-    "description": "Contract-and-mocks phase backend for the Sanjeevani supply-chain disruption system.",
-    "version": "0.1.0"
+    "description": "Sanjeevani supply-chain disruption system backend.",
+    "version": "0.2.0"
   },
   "paths": {
     "/api/v1/agents/status": {
@@ -966,6 +966,65 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/NegotiationOutcomeResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/disruptions/simulate": {
+      "post": {
+        "tags": [
+          "simulate"
+        ],
+        "summary": "Simulate Disruption",
+        "operationId": "simulate_disruption_api_v1_disruptions_simulate_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulateResponse"
                 }
               }
             }
@@ -2358,6 +2417,16 @@
         "properties": {
           "batch": {
             "$ref": "#/components/schemas/SettlementBatch"
+          },
+          "transaction_agent": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransactionAgentHandoff"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -2399,6 +2468,47 @@
           "due_date"
         ],
         "title": "SettlementLine"
+      },
+      "SimulateRequest": {
+        "properties": {
+          "scenario": {
+            "type": "string",
+            "title": "Scenario"
+          }
+        },
+        "type": "object",
+        "required": [
+          "scenario"
+        ],
+        "title": "SimulateRequest"
+      },
+      "SimulateResponse": {
+        "properties": {
+          "disruption_id": {
+            "type": "string",
+            "title": "Disruption Id"
+          },
+          "scenario": {
+            "type": "string",
+            "title": "Scenario"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "newly_triggered": {
+            "type": "boolean",
+            "title": "Newly Triggered"
+          }
+        },
+        "type": "object",
+        "required": [
+          "disruption_id",
+          "scenario",
+          "stage",
+          "newly_triggered"
+        ],
+        "title": "SimulateResponse"
       },
       "SourcingCandidate": {
         "properties": {
@@ -2517,6 +2627,37 @@
         ],
         "title": "Totals"
       },
+      "TransactionAgentHandoff": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "review_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "thread_id",
+          "status"
+        ],
+        "title": "TransactionAgentHandoff",
+        "description": "Result of staging this batch with the transaction-agent service\n(../transaction-agent) as a POST /requests natural-language payment\nrequest. Absent (null) if transaction-agent was unreachable — that\nservice is a best-effort downstream integration, not a hard dependency\nof settlement execute."
+      },
       "ValidationError": {
         "properties": {
           "loc": {
@@ -2606,6 +2747,14 @@
             "type": "string",
             "title": "State"
           },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "lng": {
+            "type": "number",
+            "title": "Lng"
+          },
           "reliability_score_0_100": {
             "type": "integer",
             "title": "Reliability Score 0 100"
@@ -2643,6 +2792,8 @@
           "phone",
           "city",
           "state",
+          "lat",
+          "lng",
           "reliability_score_0_100",
           "on_time_rate",
           "orders_completed",
