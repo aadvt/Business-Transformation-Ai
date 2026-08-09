@@ -87,6 +87,17 @@ export default function CommandPage() {
     api.getImpactGraph(event.disruption_id).then(setGraph);
   }, []);
 
+  // The live feed replays its last 50 events on connect, so the newest
+  // CANDIDATES_FOUND/PLAN_PROPOSED/IMPACT_COMPUTED in hand may belong to an
+  // earlier run. Acting on one paints the previous disruption's graph and
+  // candidates onto this run. Events with no disruption_id stay allowed —
+  // fixture mode synthesises those.
+  const isForCurrentRun = useCallback(
+    (eventDisruptionId: string | null | undefined) =>
+      !disruptionId || !eventDisruptionId || eventDisruptionId === disruptionId,
+    [disruptionId]
+  );
+
   const handleCandidatesEvent = useCallback(
     (event: Pick<WSEvent, "event_id" | "disruption_id">) => {
       setHandledCandidatesEventId(event.event_id);
@@ -95,7 +106,11 @@ export default function CommandPage() {
         return;
       }
       if (!event.disruption_id) return;
-      api.getDisruption(event.disruption_id).then((d) => setCandidates(d.candidates));
+      // Store null rather than [] when sourcing found nothing: [] is truthy,
+      // so an empty result would latch permanently — the retry guards below
+      // read `candidates` as "already have them" and never look again, which
+      // is what silently withheld the "Call vendor" button.
+      api.getDisruption(event.disruption_id).then((d) => setCandidates(d.candidates.length > 0 ? d.candidates : null));
     },
     []
   );
@@ -117,8 +132,10 @@ export default function CommandPage() {
   useEffect(() => {
     if (USE_FIXTURES || phase !== "running" || graph) return;
     const latest = impactEvents[0];
-    if (latest && latest.event_id !== handledEventId) handleImpactEvent(latest);
-  }, [impactEvents, phase, graph, handledEventId, handleImpactEvent]);
+    if (!latest || latest.event_id === handledEventId) return;
+    if (!isForCurrentRun(latest.disruption_id)) return;
+    handleImpactEvent(latest);
+  }, [impactEvents, phase, graph, handledEventId, handleImpactEvent, isForCurrentRun]);
 
   // Fixture mode: fake CANDIDATES_FOUND shortly after the wave settles —
   // sourcing runs after diagnosis in the real pipeline, so the rail
@@ -135,8 +152,10 @@ export default function CommandPage() {
   useEffect(() => {
     if (USE_FIXTURES || !graph || candidates) return;
     const latest = candidatesEvents[0];
-    if (latest && latest.event_id !== handledCandidatesEventId) handleCandidatesEvent(latest);
-  }, [candidatesEvents, graph, candidates, handledCandidatesEventId, handleCandidatesEvent]);
+    if (!latest || latest.event_id === handledCandidatesEventId) return;
+    if (!isForCurrentRun(latest.disruption_id)) return;
+    handleCandidatesEvent(latest);
+  }, [candidatesEvents, graph, candidates, handledCandidatesEventId, handleCandidatesEvent, isForCurrentRun]);
 
   const handlePlanEvent = useCallback((event: Pick<WSEvent, "event_id" | "disruption_id">) => {
     setHandledPlanEventId(event.event_id);
@@ -162,8 +181,10 @@ export default function CommandPage() {
   useEffect(() => {
     if (USE_FIXTURES || !candidates || plan) return;
     const latest = planEvents[0];
-    if (latest && latest.event_id !== handledPlanEventId) handlePlanEvent(latest);
-  }, [planEvents, candidates, plan, handledPlanEventId, handlePlanEvent]);
+    if (!latest || latest.event_id === handledPlanEventId) return;
+    if (!isForCurrentRun(latest.disruption_id)) return;
+    handlePlanEvent(latest);
+  }, [planEvents, candidates, plan, handledPlanEventId, handlePlanEvent, isForCurrentRun]);
 
   // D4: reacts to APPROVAL_DECIDED regardless of fixture/real mode — in
   // fixture mode this arrives via fixtureBus (see live.tsx), which /phone's
@@ -190,8 +211,38 @@ export default function CommandPage() {
     setDialogOpen(true);
   }
 
+  // Pull the whole current state of a disruption onto the canvas in one go.
+  // Used when a trigger doesn't start a fresh run (the vendor already has an
+  // open disruption, so the backend re-runs nothing and emits no events) and
+  // for ?call= refresh recovery. Without it the canvas waits forever on
+  // events that already fired.
+  const hydrateFromDisruption = useCallback(async (id: string) => {
+    setDisruptionId(id);
+    const [detail, impact] = await Promise.all([
+      api.getDisruption(id).catch(() => null),
+      api.getImpactGraph(id).catch(() => null),
+    ]);
+    if (impact) setGraph(impact);
+    if (detail?.candidates.length) setCandidates(detail.candidates);
+    if (detail?.approval?.status === "APPROVED") setApprovalDecision("APPROVE");
+    const nextPlan = await api.getPlan(id).catch(() => null);
+    if (nextPlan) setPlan(nextPlan);
+    setWaveDone(true);
+    setPhase("resolved");
+  }, []);
+
   function handleSubmit(body: { vendor_id: string; kind: ScenarioKind; effective_date: string }) {
-    simulate.mutate(body);
+    simulate.mutate(body, {
+      onSuccess: (result) => {
+        // newly_triggered=false means this vendor already had an open
+        // disruption and the pipeline did not re-run — catch the canvas up to
+        // where that disruption actually is instead of spinning.
+        if (result.newly_triggered === false && result.disruption_id) {
+          toast.info("That vendor already has an open disruption — showing where it stands.");
+          hydrateFromDisruption(result.disruption_id);
+        }
+      },
+    });
     setDialogOpen(false);
     setDisruptionId(null);
     setGraph(null);
@@ -222,10 +273,7 @@ export default function CommandPage() {
       api.getCall(callParam).then((c) => {
         setCallSession(c);
         setPhase("resolved");
-        if (c.disruption_id) {
-          setDisruptionId(c.disruption_id);
-          api.getPlan(c.disruption_id).then(setPlan).catch(() => undefined);
-        }
+        if (c.disruption_id) hydrateFromDisruption(c.disruption_id);
       }).catch(() => undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -248,7 +296,10 @@ export default function CommandPage() {
   }
 
   return (
-    <div className="flex h-[76vh] min-h-[560px] flex-col gap-4">
+    // Fill the viewport rather than a fixed 76vh: the canvas has to hold a
+    // 4-layer graph, the candidate rail and the plan diff at the same time,
+    // and 76vh left every one of them scrolling in a letterbox.
+    <div className="flex h-[calc(100vh-7.5rem)] min-h-[640px] flex-col gap-3">
       <PageHeader
         title="Command"
         subtitle="Trigger a disruption and watch the blast radius propagate through the supply network."
@@ -336,6 +387,7 @@ export default function CommandPage() {
                 >
                   <ImpactGraphCanvas
                     graph={graph}
+                    compact={Boolean(plan)}
                     onNodeClick={setSelectedNode}
                     onWaveComplete={() => {
                       setPhase("resolved");
@@ -354,7 +406,10 @@ export default function CommandPage() {
                   animate={{ x: 0, opacity: 1 }}
                   exit={{ x: 48, opacity: 0 }}
                   transition={{ duration: 0.4, ease: "easeOut" }}
-                  className="absolute bottom-4 left-4"
+                  // z-10 keeps it above the plan panel: this card carries the
+                  // "Call vendor" button, so it must never end up underneath
+                  // a sibling that mounts later.
+                  className="absolute bottom-4 left-4 z-10 w-[280px]"
                 >
                   <ApprovalStatusCard
                     decision={approvalDecision}

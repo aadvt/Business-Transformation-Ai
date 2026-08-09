@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RotateCcw, RotateCw, Radio, Sheet } from "lucide-react";
+import { ChevronUp, RotateCcw, RotateCw, Radio, Sheet, SlidersHorizontal, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLiveFeed } from "@/lib/live";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,10 @@ export default function DemoControlBar() {
   const router = useRouter();
   const { connectionState, allEvents } = useLiveFeed();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // Collapsed by default. Expanded, this bar is 620x70px pinned over the
+  // canvas's bottom-left — exactly where the approval card with the "Call
+  // vendor" button lives — so it used to bury the operator's next action.
+  const [open, setOpen] = useState(false);
   const [replay, setReplay] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [sheetState, setSheetState] = useState<"idle" | "pending" | "synced" | "unavailable">("idle");
@@ -71,20 +75,45 @@ export default function DemoControlBar() {
 
   return (
     <>
-      <div className="group fixed bottom-4 left-[228px] z-30 w-[min(620px,calc(100vw-250px))] rounded-lg border border-line bg-surface/95 p-2 opacity-55 shadow-sm backdrop-blur transition-opacity hover:opacity-100 focus-within:opacity-100">
-        <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-          <Button size="sm" variant="destructive" onClick={() => setConfirmOpen(true)} icon={<RotateCcw size={13} />}>Reset demo</Button>
-          <span className="mx-1 h-5 w-px bg-line" />
-          {MODES.map((mode, index) => <Button key={mode} size="sm" variant="ghost" onClick={() => jump(mode)}>{index + 1} {mode[0].toUpperCase() + mode.slice(1)}</Button>)}
+      {open ? (
+        <div className="fixed bottom-3 left-[228px] z-40 w-[min(620px,calc(100vw-250px))] rounded-lg border border-line bg-surface p-2 shadow-lg">
+          <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
+            <Button size="sm" variant="destructive" onClick={() => setConfirmOpen(true)} icon={<RotateCcw size={13} />}>Reset demo</Button>
+            <span className="mx-1 h-5 w-px bg-line" />
+            {MODES.map((mode, index) => <Button key={mode} size="sm" variant="ghost" onClick={() => jump(mode)}>{index + 1} {mode[0].toUpperCase() + mode.slice(1)}</Button>)}
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Hide demo controls"
+              className="ml-auto rounded p-1 text-ink-faint hover:bg-surface-2 hover:text-ink"
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-ink-muted">
+            <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-surface-2" onClick={() => setReplay((value) => !value)}><Radio size={12} /> {replay ? "Replay" : "Live"}</button>
+            <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-surface-2" onClick={syncSheet} disabled={syncing}><Sheet size={12} /> {sheetState === "pending" ? "Syncing…" : "Sync vendor sheet"}</button>
+            <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-surface-2" onClick={handleReplay} disabled={!callId}><RotateCw size={12} /> Replay last call <kbd className="ml-1 rounded bg-surface-2 px-1">R</kbd></button>
+            <span className="inline-flex items-center gap-1"><span className={`h-1.5 w-1.5 rounded-full ${connectionState === "open" ? "bg-success" : "bg-warning animate-blink"}`} />{connectionState === "open" ? "WS live" : "reconnecting"}</span>
+            <span className="inline-flex items-center gap-1"><span className={`h-1.5 w-1.5 rounded-full ${webhookDot}`} />{webhookLabel}</span>
+          </div>
         </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-ink-muted">
-          <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-surface-2" onClick={() => setReplay((value) => !value)}><Radio size={12} /> {replay ? "Replay" : "Live"}</button>
-          <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-surface-2" onClick={syncSheet} disabled={syncing}><Sheet size={12} /> {sheetState === "pending" ? "Syncing…" : "Sync vendor sheet"}</button>
-          <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-surface-2" onClick={handleReplay} disabled={!callId}><RotateCw size={12} /> Replay last call <kbd className="ml-1 rounded bg-surface-2 px-1">R</kbd></button>
-          <span className="inline-flex items-center gap-1"><span className={`h-1.5 w-1.5 rounded-full ${connectionState === "open" ? "bg-success" : "bg-warning animate-blink"}`} />{connectionState === "open" ? "WS live" : "reconnecting"}</span>
-          <span className="inline-flex items-center gap-1"><span className={`h-1.5 w-1.5 rounded-full ${webhookDot}`} />{webhookLabel}</span>
-        </div>
-      </div>
+      ) : (
+        // Collapsed: just the two status dots the operator glances at, plus a
+        // handle. Small enough to clear the canvas entirely.
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="fixed bottom-3 left-[228px] z-40 inline-flex items-center gap-2 rounded-lg border border-line bg-surface/90 px-2.5 py-1.5 text-[11px] text-ink-muted shadow-sm backdrop-blur transition-colors hover:bg-surface hover:text-ink"
+        >
+          <SlidersHorizontal size={12} />
+          Demo
+          <span className="h-3 w-px bg-line" />
+          <span className={`h-1.5 w-1.5 rounded-full ${connectionState === "open" ? "bg-success" : "bg-warning animate-blink"}`} />
+          <span className={`h-1.5 w-1.5 rounded-full ${webhookDot}`} />
+          <ChevronUp size={12} />
+        </button>
+      )}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Reset the demo?</DialogTitle><DialogDescription>This clears the current demo state. Use it only before restarting a run.</DialogDescription></DialogHeader>

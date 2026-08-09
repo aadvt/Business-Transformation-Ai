@@ -760,6 +760,30 @@ that only appear when a human uses the app:
   registered vendor has no row yet, so it could never pass the filter) — it
   verifies the candidate set first, then filters on the computed result.
 
+### D5d: the canvas was being driven by a fake event loop
+
+Found by watching the browser's actual websocket frames during a run:
+
+- **The pipeline never emitted `CANDIDATES_FOUND`.** The only emitter in the
+  codebase was `app/mocks/scripted_replay.py`. So /command's candidate rail —
+  and the plan panel, which waits on the rail — were driven entirely by the
+  mock's scripted event, firing against seeded disruption `228bdcbe` every
+  45s. A real run either showed no rail, or showed *another disruption's*
+  candidates. `pipeline.py` now broadcasts it after sourcing persists.
+- **`MOCK_LIVE_REPLAY` was on** (`.env`), so that scripted story — including
+  DISRUPTION_CREATED and APPROVAL_REQUESTED — was injected into the same feed
+  the demo reads, every 45 seconds. Now `false`. Leave it off for any run
+  against real data; it exists to give the frontend something to build
+  against when no backend pipeline is running.
+- Frontend counterparts: /command now ignores pipeline events whose
+  `disruption_id` doesn't match the run it's showing (the feed replays its
+  last 50 events on connect, so the newest event in hand is often stale), and
+  stores `null` rather than `[]` for "no candidates" — `[]` is truthy, so an
+  empty result latched permanently and silently withheld the "Call vendor"
+  button. A trigger that returns `newly_triggered: false` now hydrates the
+  canvas from the existing disruption instead of waiting on events that
+  already fired.
+
 **Testing note:** `tests/test_contract.py` runs against the shared seeded DB
 and is not idempotent across runs — `test_settlement_confirm` confirms a batch,
 so a second run sees no PENDING settlement items and `test_vendor_dues` fails
