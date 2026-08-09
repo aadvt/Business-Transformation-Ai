@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Register (or update) the voice/bolna_agent_config.json agent with Bolna.
+"""Register (or update) a Bolna agent config with Bolna's API. Two configs
+live in this directory: bolna_agent_config.json (the owner-approval agent,
+the default) and bolna_negotiation_agent_config.json (the outbound vendor
+negotiation agent — pass --config negotiation to target it).
 
 Defaults to a dry run — it resolves the config's placeholder URLs/token and
 prints what WOULD be sent, but does not call Bolna's API. Pass --submit to
 actually create the agent.
 
-    python -m voice.register_agent                 # dry run
-    python -m voice.register_agent --submit          # really create it
-    python -m voice.register_agent --submit --update <agent_id>   # update instead
+    python -m voice.register_agent                              # dry run, approval agent
+    python -m voice.register_agent --submit                     # really create it
+    python -m voice.register_agent --submit --update <agent_id> # update instead
+    python -m voice.register_agent --config negotiation --submit  # the negotiation agent instead
 
 Requires (in .env or the environment):
     BOLNA_API_KEY               your Bolna API key
@@ -24,7 +28,6 @@ an agent Bolna can't reach.
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import os
 import sys
@@ -36,14 +39,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOLNA_API_BASE = "https://api.bolna.ai"
-CONFIG_PATH = Path(__file__).parent / "bolna_agent_config.json"
+CONFIG_PATHS = {
+    "approval": Path(__file__).parent / "bolna_agent_config.json",
+    "negotiation": Path(__file__).parent / "bolna_negotiation_agent_config.json",
+}
 
 PLACEHOLDER_HOST = "https://YOUR_PUBLIC_HOST"
 PLACEHOLDER_SECRET = "YOUR_VOICE_ADAPTER_SHARED_SECRET"
 
 
-def resolve_config(base_url: str, shared_secret: str) -> dict:
-    config = json.loads(CONFIG_PATH.read_text())
+def resolve_config(config_path: Path, base_url: str, shared_secret: str) -> dict:
+    config = json.loads(config_path.read_text())
     tools_params = config["agent_config"]["tasks"][0]["tools_config"]["api_tools"]["tools_params"]
     for tool_name, params in tools_params.items():
         params["url"] = params["url"].replace(PLACEHOLDER_HOST, base_url.rstrip("/"))
@@ -53,6 +59,12 @@ def resolve_config(base_url: str, shared_secret: str) -> dict:
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument(
+        "--config",
+        choices=sorted(CONFIG_PATHS),
+        default="approval",
+        help="Which agent config to register (default: approval)",
+    )
     parser.add_argument("--submit", action="store_true", help="Actually call Bolna's API (default: dry run / print only)")
     parser.add_argument("--update", metavar="AGENT_ID", default=None, help="Update this agent instead of creating a new one")
     args = parser.parse_args(argv)
@@ -73,7 +85,7 @@ def main(argv: list[str]) -> int:
         if args.submit:
             return 1
 
-    config = resolve_config(base_url, shared_secret)
+    config = resolve_config(CONFIG_PATHS[args.config], base_url, shared_secret)
 
     print("Resolved tool webhook URLs:")
     tools_params = config["agent_config"]["tasks"][0]["tools_config"]["api_tools"]["tools_params"]

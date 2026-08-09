@@ -1,0 +1,102 @@
+{
+  "agent_config": {
+    "agent_name": "Vendor Negotiation Agent",
+    "agent_welcome_message": "Hello, this is a call from the procurement team regarding an outstanding payment matter. Do you have a moment to talk?",
+    "tasks": [
+      {
+        "task_type": "conversation",
+        "toolchain": {
+          "execution": "sequential",
+          "pipelines": [["transcriber", "llm", "synthesizer"]]
+        },
+        "tools_config": {
+          "llm_agent": {
+            "agent_type": "simple_llm_agent",
+            "agent_flow_type": "streaming",
+            "llm_config": {
+              "provider": "openai",
+              "model": "gpt-4.1-mini",
+              "max_tokens": 200,
+              "temperature": 0.2
+            }
+          },
+          "synthesizer": {
+            "provider": "elevenlabs",
+            "provider_config": {
+              "voice": "Nila",
+              "voice_id": "V9LCAAi4tTlqe9JadbCo",
+              "model": "eleven_turbo_v2_5"
+            },
+            "stream": true,
+            "buffer_size": 250,
+            "audio_format": "wav"
+          },
+          "transcriber": {
+            "provider": "deepgram",
+            "model": "nova-2-phonecall",
+            "language": "en",
+            "stream": true,
+            "encoding": "linear16",
+            "sampling_rate": 16000,
+            "endpointing": 250
+          },
+          "input": { "provider": "plivo", "format": "wav" },
+          "output": { "provider": "plivo", "format": "wav" },
+          "api_tools": {
+            "tools": [
+              {
+                "name": "record_negotiation_outcome",
+                "key": "custom_task",
+                "description": "Call this exactly once, at the very end of the call, after the negotiation has concluded one way or another (agreed, declined, or the vendor hung up / call ended without a clear answer — treat the latter as declined with a note explaining why). Never call this more than once per call.",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "vendor_name": {
+                      "type": "string",
+                      "description": "The vendor/company name, as confirmed with the person on the call"
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": ["accepted", "declined"],
+                      "description": "'accepted' only if the vendor explicitly agreed to a specific final amount; 'declined' otherwise"
+                    },
+                    "agreed_amount": {
+                      "type": "number",
+                      "description": "The final agreed numeric amount, no currency symbols or commas. Use the real agreed number when outcome is 'accepted'; pass 0 when outcome is 'declined'"
+                    },
+                    "purpose": {
+                      "type": "string",
+                      "description": "What the payment is for, if mentioned; pass an empty string if not mentioned"
+                    },
+                    "notes": {
+                      "type": "string",
+                      "description": "Brief summary of anything relevant: why declined, conditions attached, follow-up needed, etc.; pass an empty string if there's nothing to add"
+                    }
+                  },
+                  "required": ["vendor_name", "outcome", "agreed_amount", "purpose", "notes"]
+                }
+              }
+            ],
+            "tools_params": {
+              "record_negotiation_outcome": {
+                "method": "POST",
+                "url": "https://YOUR_PUBLIC_HOST/voice/negotiation/outcome",
+                "api_token": "YOUR_VOICE_ADAPTER_SHARED_SECRET",
+                "param": "{\"call_sid\": \"%(call_sid)s\", \"vendor_name\": \"%(vendor_name)s\", \"outcome\": \"%(outcome)s\", \"agreed_amount\": %(agreed_amount)f, \"purpose\": \"%(purpose)s\", \"notes\": \"%(notes)s\"}"
+              }
+            }
+          }
+        },
+        "task_config": {
+          "call_terminate": 300,
+          "hangup_after_silence": 15
+        }
+      }
+    ]
+  },
+  "agent_prompts": {
+    "task_1": {
+      "system_prompt": "You are a warm, patient, and unfailingly polite negotiation caller working on behalf of a procurement team. Your ENTIRE manner must stay friendly and respectful, even if the other party is curt, hesitant, or says no — a 'no' is a perfectly fine outcome and should never be met with pressure or a change in tone.\n\nYour job on this call:\n\n1. Greet the person warmly and confirm who they are and which company/vendor they represent. Do not assume — ask and listen.\n\n2. Explain, briefly and clearly, what payment or matter you're calling about. If you don't have specifics, ask them to confirm what's outstanding.\n\n3. Discuss and negotiate the amount or terms. Be reasonable and collaborative, not pushy. If they propose a number, you may accept it, counter once or twice politely, or note it for the owner to review — use your judgement, but never pressure them into agreeing.\n\n4. If at any point the person asks to speak to a real person instead of you, immediately and graciously use the call transfer capability already configured on this line to connect them — do not argue, do not keep negotiating, just transfer. This request is always honored.\n\n5. Before the call ends, if they agreed to a specific number, repeat it back clearly and get an explicit final confirmation ('So to confirm, we've agreed on [amount] — is that right?') before treating it as accepted.\n\n6. At the very end of the call — and only once — call record_negotiation_outcome with everything you learned: the vendor's name, 'accepted' with the confirmed agreed_amount if they agreed to a specific number, or 'declined' with a short note otherwise (including if they simply weren't interested, asked to be called back later, or the call ended unexpectedly).\n\n7. Close warmly regardless of outcome — thank them for their time either way. Never mention that this is a simulated or automated payment system unless directly and explicitly asked.\n\nAlways speak naturally and keep responses short — this is a phone call, not an essay. Never make up a name, amount, or detail you weren't actually told."
+    }
+  }
+}
