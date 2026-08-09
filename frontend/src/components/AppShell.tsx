@@ -7,8 +7,11 @@ import {
   Bell,
   Building2,
   ChevronsUpDown,
+  DatabaseZap,
   LayoutGrid,
   LogOut,
+  Radar,
+  Route,
   Settings,
   User,
   Wallet,
@@ -30,12 +33,42 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const NAV_ITEMS = [
-  { href: "/", label: "Main dashboard", icon: LayoutGrid },
-  { href: "/settlement", label: "Transactions", icon: Wallet },
-  { href: "/directory", label: "Vendors", icon: Building2 },
-  { href: "/waterfall", label: "Updates", icon: Bell },
+// Grouped because a flat list of seven reads as a pile of screens; the three
+// headings say what the workspace is *for* — watch it, act on it, set it up.
+//
+// `/vendors` is the ops-side list of vendors you actually trade with. The
+// public self-registration directory still lives at its own standalone
+// `/directory` route, reached from that page's Discover tab rather than from
+// here — a workspace nav item should never eject you out of the workspace.
+//
+// `/network` is deliberately absent: the main dashboard now embeds the same
+// map full-bleed, so a separate route for it would be a second door to one room.
+const NAV_GROUPS: { heading: string; items: { href: string; label: string; icon: typeof LayoutGrid }[] }[] = [
+  {
+    heading: "Monitor",
+    items: [
+      { href: "/", label: "Main dashboard", icon: LayoutGrid },
+      { href: "/waterfall", label: "Updates", icon: Bell },
+    ],
+  },
+  {
+    heading: "Respond",
+    items: [
+      { href: "/command", label: "Command", icon: Radar },
+      { href: "/vendors", label: "Vendors", icon: Building2 },
+      { href: "/settlement", label: "Transactions", icon: Wallet },
+    ],
+  },
+  {
+    heading: "Set up",
+    items: [
+      { href: "/onboarding", label: "Data sources", icon: DatabaseZap },
+      { href: "/pipeline", label: "How it works", icon: Route },
+    ],
+  },
 ];
+
+const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
 const CONNECTION = {
   open: { label: "Live", dot: "bg-success", hint: "Connected — the dashboard updates as events arrive." },
@@ -84,38 +117,41 @@ export default function AppShell({ children }: { children: ReactNode }) {
             </Link>
           </div>
 
-          <div className="px-5 pt-3 pb-2">
-            <span className="eyebrow">Workspace</span>
-          </div>
-
-          <nav className="flex-1 space-y-1 px-3">
-            {NAV_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const active = pathname === item.href;
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={clsx(
-                    "relative flex items-center gap-3 rounded-md px-3 py-2.5 outline-offset-2 transition-colors duration-200",
-                    NAV_LABEL,
-                    active
-                      ? "bg-accent-dim text-accent"
-                      : "text-ink-muted hover:bg-surface-2 hover:text-ink active:bg-surface-3"
-                  )}
-                >
-                  {active && <span className="absolute top-2 bottom-2 left-0 w-1 rounded-r-full bg-accent" />}
-                  <Icon size={16} className={active ? "text-accent" : "text-ink-faint"} />
-                  {item.label}
-                  {item.href === "/" && pendingApprovalsCount > 0 && (
-                    <span className="numeric ml-auto rounded-full bg-critical-dim px-1.5 py-px text-[10px] font-semibold text-critical">
-                      {pendingApprovalsCount}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
+          <nav className="flex-1 overflow-y-auto px-3 pt-3 pb-2">
+            {NAV_GROUPS.map((group) => (
+              <div key={group.heading} className="mb-4 last:mb-0">
+                <span className="eyebrow block px-3 pb-1.5">{group.heading}</span>
+                <div className="space-y-1">
+                  {group.items.map((item) => {
+                    const Icon = item.icon;
+                    const active = pathname === item.href;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        aria-current={active ? "page" : undefined}
+                        className={clsx(
+                          "relative flex items-center gap-3 rounded-md px-3 py-2.5 outline-offset-2 transition-colors duration-200",
+                          NAV_LABEL,
+                          active
+                            ? "bg-accent-dim text-accent"
+                            : "text-ink-muted hover:bg-surface-2 hover:text-ink active:bg-surface-3"
+                        )}
+                      >
+                        {active && <span className="absolute top-2 bottom-2 left-0 w-1 rounded-r-full bg-accent" />}
+                        <Icon size={16} className={active ? "text-accent" : "text-ink-faint"} />
+                        {item.label}
+                        {item.href === "/" && pendingApprovalsCount > 0 && (
+                          <span className="numeric ml-auto rounded-full bg-critical-dim px-1.5 py-px text-[10px] font-semibold text-critical">
+                            {pendingApprovalsCount}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </nav>
 
           <div className="mt-auto border-t border-line px-5 py-4">

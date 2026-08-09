@@ -2,40 +2,21 @@
 
 import { useAgentsStatus, useDisruptions } from "@/lib/queries";
 import AgentStatusStrip from "@/components/AgentStatusStrip";
-import WaterfallPipeline from "@/components/WaterfallPipeline";
-import PipelineBoard from "@/components/PipelineBoard";
+import UpdatesBoard from "@/components/UpdatesBoard";
 import Skeleton from "@/components/ui/skeleton";
-import PageHeader, { EmptyState, SectionHeading } from "@/components/PageHeader";
-import type { DisruptionStage } from "@/lib/types";
-
-const STAGE_RANK: Record<DisruptionStage, number> = {
-  AWAITING_APPROVAL: 0,
-  NEGOTIATING: 1,
-  NEGOTIATED: 1,
-  DETECTED: 2,
-  DIAGNOSED: 2,
-  SOURCING: 2,
-  APPROVED: 2,
-  SETTLEMENT_PENDING: 3,
-  SETTLED: 4,
-  CLOSED: 4,
-  REJECTED: 5,
-  FAILED: 5,
-};
+import PageHeader, { SectionHeading } from "@/components/PageHeader";
 
 export default function WaterfallPage() {
   const { data: agentsResponse, isLoading: agentsLoading } = useAgentsStatus();
   const { data: disruptionsResponse, isLoading: disruptionsLoading } = useDisruptions();
 
-  const sorted = [...(disruptionsResponse?.items ?? [])].sort(
-    (a, b) => STAGE_RANK[a.stage] - STAGE_RANK[b.stage] || new Date(b.detected_at).getTime() - new Date(a.detected_at).getTime()
-  );
+  const disruptions = disruptionsResponse?.items ?? [];
 
   return (
     <div>
       <PageHeader
-        title="Pipeline"
-        subtitle="Per-disruption progress through all six stages, and the live status of the agent that owns each one."
+        title="Updates"
+        subtitle="Everything in flight, held in the lane for the stage it is actually sitting in — so what is stuck, and where, is a position on the board rather than something you read off every row."
       />
 
       <section className="mb-6">
@@ -47,32 +28,11 @@ export default function WaterfallPage() {
         )}
       </section>
 
-      {/* The board answers "where is everything right now"; the stepper list
-          below answers "how did this one get here". Same data, two different
-          reading tasks — the board is the one you scan. */}
-      <section className="mb-6">
-        {/* No SectionHeading here — PipelineBoard carries its own header, and
-            two labels for one board is one too many. */}
-        {disruptionsLoading || !agentsResponse ? (
-          <Skeleton className="h-64" />
-        ) : (
-          <PipelineBoard disruptions={sorted} agents={agentsResponse.agents} />
-        )}
-      </section>
-
       <section>
-        <SectionHeading count={sorted.length}>Disruptions in flight</SectionHeading>
-        {disruptionsLoading ? (
-          <Skeleton className="h-44" />
-        ) : sorted.length === 0 ? (
-          <EmptyState>Nothing in the pipeline right now.</EmptyState>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {sorted.map((d) => (
-              <WaterfallPipeline key={d.id} disruption={d} />
-            ))}
-          </div>
-        )}
+        <SectionHeading count={disruptionsLoading ? undefined : disruptions.length}>
+          Disruptions in flight
+        </SectionHeading>
+        <UpdatesBoard disruptions={disruptions} isLoading={disruptionsLoading} />
       </section>
     </div>
   );

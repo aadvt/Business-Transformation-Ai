@@ -537,7 +537,27 @@ export interface WSEventPayloads {
     exposure_after: { total_paise: number; total_display: string } | null;
     duration_seconds: number;
   };
-  INGEST_PROGRESS: { ingest_id: string; status: IngestStatus; progress_pct: number };
+  // Shape verified against the live emitter in backend/app/routers/ingest.py's
+  // `_process` — it broadcasts one event per stage per file, and the extra
+  // keys differ by stage (SHEETS_FOUND carries sheet_count, ROWS_FOUND carries
+  // sheet/classification/confidence/row_count, and so on). Kept as optional
+  // fields rather than a discriminated union because the backend spreads
+  // `**extra` untyped; narrow on `stage` at the call site.
+  INGEST_PROGRESS: {
+    ingest_id: string;
+    file_id: string;
+    name: string;
+    stage: IngestStage;
+    sheet_count?: number;
+    sheet?: string;
+    classification?: string;
+    confidence?: number;
+    row_count?: number;
+    entity_count?: number;
+    parser?: string;
+    status?: IngestStatus;
+    error?: string;
+  };
   BRIEFING_READY: { vendor_id: string; briefing: string };
   AGENT_SHEET_SYNCED: AgentSheetSync;
 }
@@ -605,7 +625,56 @@ export type CallStatus = "DIALING" | "CONNECTED" | "NEGOTIATING" | "CONFIRMED" |
 
 export type PlanChangeKind = "SPLIT_ORDER" | "SWITCH_VENDOR" | "PULL_FORWARD_STOCK" | "REDUCE_QUANTITY" | "EXPEDITE_FREIGHT";
 
-export type IngestStatus = "QUEUED" | "PARSING" | "RESOLVED" | "FAILED";
+export type IngestStatus = "QUEUED" | "PARSING" | "RESOLVED" | "FAILED" | "COMPLETED";
+
+// The per-file lifecycle the ingest router actually broadcasts, in order.
+// FAILED is terminal and replaces whatever stage was in flight.
+export type IngestStage =
+  | "PARSING_STARTED"
+  | "SHEETS_FOUND"
+  | "ROWS_FOUND"
+  | "ENTITIES_FOUND"
+  | "DEDUPE_COMPLETE"
+  | "FAILED";
+
+export const INGEST_STAGE_ORDER: IngestStage[] = [
+  "PARSING_STARTED",
+  "SHEETS_FOUND",
+  "ROWS_FOUND",
+  "ENTITIES_FOUND",
+  "DEDUPE_COMPLETE",
+];
+
+export interface IngestQueuedFile {
+  file_id: string;
+  name: string;
+  status: IngestStatus;
+}
+
+export interface IngestFilesResponse {
+  ingest_id: string;
+  files: IngestQueuedFile[];
+}
+
+// ---- Business profile (backend/app/routers/business.py) ----
+
+export interface BusinessQuestion {
+  id: string;
+  question: string;
+  options: string[];
+}
+
+export interface BusinessProfile {
+  vendor_count: number;
+  item_count: number;
+  categories: string[];
+  avg_payment_cycle_days: number;
+  peak_months: string[] | null;
+  plant_locations: string[];
+  top_dependencies: string[];
+  answers: Record<string, string>;
+  updated_at: string;
+}
 
 export interface GraphNode {
   id: string;

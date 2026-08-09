@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { RotateCcw, RotateCw, Radio, Sheet } from "lucide-react";
+import { RotateCcw, RotateCw, Radio, Sheet, SlidersHorizontal, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useLiveFeed } from "@/lib/live";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ export default function DemoControlBar() {
   const router = useRouter();
   const { connectionState, allEvents } = useLiveFeed();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [replay, setReplay] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [sheetState, setSheetState] = useState<"idle" | "pending" | "synced" | "unavailable">("idle");
@@ -71,11 +72,35 @@ export default function DemoControlBar() {
 
   return (
     <>
-      <div className="group fixed bottom-4 left-[228px] z-30 w-[min(620px,calc(100vw-250px))] rounded-lg border border-line bg-surface/95 p-2 opacity-55 shadow-sm backdrop-blur transition-opacity hover:opacity-100 focus-within:opacity-100">
+      {/* Collapsed by default. Expanded, this is three wrapped rows of
+          rehearsal controls pinned over the dashboard's bottom-left bento
+          tiles — useful while rehearsing, in the way the rest of the time.
+          The numbered buttons jump /command to a stage without waiting for
+          the pipeline; nothing here is a product feature. */}
+      {!expanded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          className="fixed bottom-4 left-[244px] z-30 flex items-center gap-2 rounded-full border border-line bg-surface/95 px-3 py-1.5 text-[11px] font-medium text-ink-muted opacity-60 shadow-sm backdrop-blur transition-opacity duration-150 hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          <SlidersHorizontal size={12} />
+          Demo tools
+          <span className={`size-1.5 rounded-full ${connectionState === "open" ? "bg-success" : "bg-warning animate-blink"}`} />
+        </button>
+      ) : (
+      <div className="group fixed bottom-4 left-[244px] z-30 w-[min(620px,calc(100vw-266px))] rounded-lg border border-line bg-surface/95 p-2 shadow-sm backdrop-blur">
         <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
           <Button size="sm" variant="destructive" onClick={() => setConfirmOpen(true)} icon={<RotateCcw size={13} />}>Reset demo</Button>
           <span className="mx-1 h-5 w-px bg-line" />
           {MODES.map((mode, index) => <Button key={mode} size="sm" variant="ghost" onClick={() => jump(mode)}>{index + 1} {mode[0].toUpperCase() + mode.slice(1)}</Button>)}
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            aria-label="Hide demo tools"
+            className="ml-auto flex size-6 items-center justify-center rounded-sm text-ink-faint transition-colors duration-150 hover:bg-surface-2 hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            <X size={13} />
+          </button>
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-3 text-[11px] text-ink-muted">
           <button type="button" className="inline-flex items-center gap-1 rounded px-1.5 py-1 hover:bg-surface-2" onClick={() => setReplay((value) => !value)}><Radio size={12} /> {replay ? "Replay" : "Live"}</button>
@@ -85,6 +110,7 @@ export default function DemoControlBar() {
           <span className="inline-flex items-center gap-1"><span className={`h-1.5 w-1.5 rounded-full ${webhookDot}`} />{webhookLabel}</span>
         </div>
       </div>
+      )}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Reset the demo?</DialogTitle><DialogDescription>This clears the current demo state. Use it only before restarting a run.</DialogDescription></DialogHeader>

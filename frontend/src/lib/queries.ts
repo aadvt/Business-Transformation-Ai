@@ -23,6 +23,8 @@ export const queryKeys = {
   publicVendors: (params: PublicVendorSearchParams) => ["publicVendors", params] as const,
   publicVendor: (id: string) => ["publicVendor", id] as const,
   phoneMessages: ["phoneMessages"] as const,
+  businessQuestions: ["businessQuestions"] as const,
+  businessProfile: ["businessProfile"] as const,
 };
 
 export function useAgentsStatus() {
@@ -110,6 +112,45 @@ export function usePhoneMessages() {
     queryKey: queryKeys.phoneMessages,
     queryFn: api.getPhoneMessages,
     refetchInterval: 5000,
+  });
+}
+
+// ---- Onboarding (backend/app/routers/{ingest,business}.py) ----
+
+export function useBusinessQuestions() {
+  return useQuery({
+    queryKey: queryKeys.businessQuestions,
+    queryFn: api.getBusinessQuestions,
+    staleTime: Infinity, // a static list on the backend — never worth refetching
+  });
+}
+
+export function useBusinessProfile() {
+  return useQuery({
+    queryKey: queryKeys.businessProfile,
+    queryFn: api.getBusinessProfile,
+  });
+}
+
+export function useSaveBusinessAnswers() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.saveBusinessAnswers,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.businessProfile });
+    },
+  });
+}
+
+export function useIngestFiles() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.ingestFiles,
+    onSuccess: () => {
+      // Parsing lands new vendors/POs, so anything counting them is stale.
+      queryClient.invalidateQueries({ queryKey: ["vendors"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.businessProfile });
+    },
   });
 }
 

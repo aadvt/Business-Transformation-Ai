@@ -4,8 +4,11 @@ import type {
   ApprovalDecisionRequest,
   ApprovalDecisionResponse,
   AuditTrail,
+  BusinessProfile,
+  BusinessQuestion,
   CallSession,
   CallStartRequest,
+  IngestFilesResponse,
   DashboardSummary,
   DemoState,
   Disruption,
@@ -234,6 +237,34 @@ export const api = {
       : `${API_BASE_URL}/api/v1/agent/vendor-sheet.csv${query({ disruption_id: disruptionId })}`,
 
   getDashboardSummary: () => request<DashboardSummary>("/api/v1/dashboard/summary"),
+
+  // ---- Onboarding: ingest + business profile ----
+  // These back the /onboarding route. They are deliberately NOT fixture-gated:
+  // ingest's whole point is that it parses a file you actually dropped, and
+  // progress arrives as real INGEST_PROGRESS events off the WS feed. Faking
+  // that would mean showing an operator parse results for a file nobody read.
+
+  /** Multipart upload — deliberately bypasses `request()`, which forces a
+   *  JSON content-type; letting fetch set its own multipart boundary is the
+   *  only way the backend's `UploadFile` parser sees the parts. */
+  ingestFiles: async (files: File[]): Promise<IngestFilesResponse> => {
+    const form = new FormData();
+    for (const file of files) form.append("files", file);
+    const res = await fetch(`${API_BASE_URL}/api/v1/ingest/files`, { method: "POST", body: form });
+    if (!res.ok) throw new ApiError(res.status, `Upload failed: ${res.statusText}`);
+    return (await res.json()) as IngestFilesResponse;
+  },
+
+  getBusinessQuestions: () =>
+    request<{ questions: BusinessQuestion[] }>("/api/v1/business/questions").then((r) => r.questions),
+
+  getBusinessProfile: () => request<BusinessProfile>("/api/v1/business/profile"),
+
+  saveBusinessAnswers: (answers: Record<string, string>) =>
+    request<{ status: string; updated_at: string }>("/api/v1/business/answers", {
+      method: "POST",
+      body: JSON.stringify({ answers }),
+    }),
 
   decideApproval: (approvalId: string, body: ApprovalDecisionRequest) =>
     request<ApprovalDecisionResponse>(`/api/v1/approvals/${approvalId}/decision`, {
