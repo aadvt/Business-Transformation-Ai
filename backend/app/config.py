@@ -17,10 +17,24 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
     # --- Mock data behavior ---
-    mock_live_replay: bool = True
+    # Off by default now that real Neon data is wired in: the scripted
+    # replay loop (app/mocks/scripted_replay.py) references the old
+    # fixture-backed Store shape directly (store.disruptions[...]) and
+    # would crash on its first tick against the trimmed Store — and even
+    # fixed, broadcasting a fake disruption alongside real DB-backed ones
+    # would be actively misleading. Still available for local UI-only work
+    # with no DB configured.
+    mock_live_replay: bool = False
+
+    # --- Database ---
+    # Neon Postgres. Pooled endpoint (PgBouncer, transaction mode) — see
+    # app/db.py for the prepared-statement caveat that comes with that.
+    database_url: str = ""
+    # The one real `organisations` row this whole backend currently scopes
+    # to — no multi-tenant auth in this phase, just a fixed scope constant.
+    org_id: str = "b2f6c8a0-0000-4000-8000-000000000001"
 
     # --- Future integrations (unused in this phase) ---
-    database_url: str = ""
     watsonx_api_key: str = ""
     watsonx_project_id: str = ""
     guardian_api_url: str = ""

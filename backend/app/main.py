@@ -35,8 +35,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Sanjeevani Backend",
-    description="Contract-and-mocks phase backend for the Sanjeevani supply-chain disruption system.",
-    version="0.1.0",
+    description="Postgres-backed backend for the Sanjeevani supply-chain disruption system.",
+    version="0.2.0",
     lifespan=lifespan,
 )
 

@@ -7,7 +7,6 @@ without needing a real detection pipeline running.
 
 import asyncio
 
-from app.mocks.loader import store
 from app.schemas.enums import AgentName, AgentStatus, DisruptionStage, WSEventType
 from app.ws_manager import live_feed
 
@@ -15,6 +14,13 @@ HEARTBEAT_INTERVAL_SECONDS = 20
 SCRIPT_INTERVAL_SECONDS = 45
 
 _SCRIPT_DISRUPTION_ID = "228bdcbe-3b9e-42a4-a84f-2f42c48ec664"
+# Matches that disruption's real headline (Coromandel Tooling Works, in both
+# the original fixtures and the real Neon row) — hardcoded rather than read
+# from the mock Store, which no longer carries disruption data now that
+# real persistence exists. This loop only runs at all when
+# MOCK_LIVE_REPLAY=true, i.e. deliberately opted back into for UI-only work
+# with no DB configured.
+_SCRIPT_HEADLINE = "Incoming QC rejected 12% of jig fixture batch for dimensional tolerance failure"
 
 _SCRIPT_STEPS: list[tuple[WSEventType, dict, bool]] = [
     (WSEventType.AGENT_STATUS_CHANGED, {"agent": AgentName.DIAGNOSIS, "status": AgentStatus.RUNNING}, False),
@@ -39,7 +45,7 @@ async def run_scripted_replay() -> None:
         await asyncio.sleep(SCRIPT_INTERVAL_SECONDS)
         await live_feed.broadcast(
             WSEventType.DISRUPTION_CREATED,
-            payload={"headline": store.disruptions[_SCRIPT_DISRUPTION_ID].headline},
+            payload={"headline": _SCRIPT_HEADLINE},
             disruption_id=_SCRIPT_DISRUPTION_ID,
         )
         for event_type, payload, tagged in _SCRIPT_STEPS:
