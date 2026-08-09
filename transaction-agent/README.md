@@ -90,21 +90,27 @@ transaction_agent/
   recipient_directory.py     recipient store + fuzzy matching (difflib) — SQLite or Neon
   users.py                   user table, salted+hashed passphrases — SQLite or Neon
   audit.py                    persistent audit log (dedup-by-entry_id, idempotent) — JSON or Neon
-  db.py                        shared Postgres (Neon) connection helper for the three above
-  checkpointer.py               picks SqliteSaver or PostgresSaver the same way
-  graph.py                       the compiled LangGraph graph — zero terminal I/O
+  negotiations.py               outbound negotiation call outcomes — SQLite or Neon
+  db.py                          shared Postgres (Neon) connection helper for the stores above
+  checkpointer.py                 picks SqliteSaver or PostgresSaver the same way
+  graph.py                         the compiled LangGraph graph — zero terminal I/O
 cli.py                         terminal front end: .invoke(), interrupt handling,
                                 --resume, prompts
 api.py                         HTTP front end (FastAPI): same .invoke()/Command(resume=...)
                                 calls, for a voice agent or any other non-terminal caller
+railway.json, start.sh         Railway deployment: one start script picks api.py or
+                                voice/adapter.py per service via a SERVICE_ROLE env var
 voice/
   state.py                     SQLite state keyed by call_sid: call_sid -> thread_id,
                                  pending selection, per-item disambiguation queue, transcript log
   nlu.py                        dependency-free selection/DTMF parsing + spoken-text formatting
   adapter.py                    the actual webhook endpoints Bolna's tools call — calls api.py
                                  over HTTP, reshapes responses into spoken_text
-  bolna_agent_config.json       the Bolna v2 agent definition (tools + system prompt)
-  register_agent.py             registers/updates the agent with Bolna's API (dry-run by default)
+  sheets.py                      Google Sheets logging for negotiation outcomes (service account)
+  setup_sheet.py                  one-time: create + share the negotiation-outcomes sheet
+  bolna_agent_config.json       the owner-approval Bolna agent (tools + system prompt)
+  bolna_negotiation_agent_config.json  the outbound vendor negotiation Bolna agent
+  register_agent.py             registers/updates either agent with Bolna's API (dry-run by default)
 smoke_test.py                   standalone watsonx.ai auth check
 tests/                          pytest suite
 VOICE_TEST_PLAN.md              manual test plan for the voice channel (see "Voice channel" below)
@@ -323,15 +329,23 @@ export VOICE_ADAPTER_SHARED_SECRET=some-other-secret # what Bolna's tools authen
 uvicorn voice.adapter:app --reload --port 8100
 ```
 
-**Register the agent** with Bolna once the adapter is reachable at a public
-URL (e.g. via `ngrok http 8100` in dev):
+**Register the agent(s)** with Bolna once the adapter is reachable at a
+public URL (e.g. via `ngrok http 8100` in dev, or a real deploy — see
+"Deployment" below):
 
 ```bash
 export BOLNA_API_KEY=...            # from the Bolna Dashboard > Developers
 export VOICE_ADAPTER_BASE_URL=https://your-tunnel-or-host.example.com
-python -m voice.register_agent            # dry run: prints the resolved config
-python -m voice.register_agent --submit   # actually creates the agent via Bolna's API
+python -m voice.register_agent                          # dry run: owner-approval agent
+python -m voice.register_agent --submit                 # actually creates it via Bolna's API
+python -m voice.register_agent --config negotiation --submit  # the outbound negotiation agent (see below)
 ```
+
+Point a Bolna phone number's inbound routing at the approval agent
+(`POST https://api.bolna.ai/inbound/setup` with that agent's `agent_id`
+and the number's `phone_number_id` — find the latter via
+`GET /phone-numbers/all`), and use the negotiation agent's `agent_id` as
+the `agent_id` in `POST /call` when placing outbound vendor calls.
 
 **Call flow**, driven by the system prompt in `voice/bolna_agent_config.json`:
 
@@ -392,6 +406,60 @@ scenarios (clean approval, partial selection, voice disambiguation, wrong
 PIN, hangup-mid-flow) — what's automated in `tests/test_voice_adapter.py`
 versus what only a real call can verify, and exactly how to check each one.
 
+### Outbound vendor negotiation (a second, separate agent)
+
+The owner-approval agent above is for someone calling *in* to approve a
+payment. Placing *outbound* calls to negotiate a price with a vendor is a
+different conversation with a different job — extract who you're talking
+to and what they'll agree to, stay warm and unhurried, and transfer to a
+human the moment they ask — so it's a second Bolna agent
+(`voice/bolna_negotiation_agent_config.json`), not a mode of the first one.
+
+It has exactly one tool, `record_negotiation_outcome`, called once at the
+end of the call → `POST /voice/negotiation/outcome`:
+
+- **Declined**: recorded in `transaction_agent/negotiations.py` (same
+  dual SQLite/Postgres backend as everything else) and, if configured, a
+  row in the Google Sheet (see below). Nothing further happens.
+- **Accepted**: recorded the same way, *and* a normal payment request is
+  created via the same `POST /requests` any other channel uses (recipient
+  auto-resolved, since this agent has no disambiguation sub-flow of its
+  own) — so the result lands in the owner's regular approval queue, not a
+  side channel. The negotiation record's `transaction_id` links back to it.
+
+The call-transfer-to-a-human behavior ("if the vendor would like to speak
+to the person directly") relies on whatever transfer/handoff capability is
+already configured on the Bolna number/account — this repo doesn't define
+or override that, only instructs the negotiation prompt to use it
+immediately and without argument whenever asked.
+
+**Google Sheets logging** (`voice/sheets.py`) is a supplementary view for
+the owner, not the source of truth — a service account (machine
+credential, no interactive OAuth), gated so a Sheets failure never blocks
+recording an outcome. A service account on a personal (non-Workspace)
+Google account has no Drive storage of its own, so it can't *create* a
+new spreadsheet (Drive API returns "storage quota exceeded") — the
+standard workaround, and the default here: create a blank sheet yourself,
+share it with the service account's `client_email` as Editor, then:
+
+```bash
+export GOOGLE_SERVICE_ACCOUNT_JSON="$(cat service-account-key.json)"
+python -m voice.setup_sheet --open-existing <sheet_url_or_id>
+# prints the spreadsheet ID — set NEGOTIATION_SPREADSHEET_ID to it
+```
+
+(`--create --share-with owner@example.com` instead if your service account
+does have Drive quota — e.g. a Workspace domain with a Shared Drive.)
+
+### Deployment
+
+`api.py` and `voice/adapter.py` are deployed as two Railway services from
+this same repo — `start.sh` picks which one to run via a `SERVICE_ROLE`
+env var (`api` or `voice`) per service, so nothing is duplicated. See
+`railway.json` / `start.sh`. Both services need Railway's dynamically
+assigned `$PORT` — the generated domain's target port must match it (check
+via `railway logs` if you get a 502; Railway may not pick 8000/8100).
+
 ## Orchestrate readiness
 
 watsonx Orchestrate can import a LangGraph agent directly (via the
@@ -451,7 +519,10 @@ API-key enforcement, the Orchestrate-readiness checks above, the voice
 adapter's NLU parsing and every mechanical piece of the call flow (select →
 confirm gate, PIN retry, one-at-a-time disambiguation, channel/call_id/
 transcript_ref audit tagging, and a "hangup" leaving the thread parked
-rather than approved or lost) — everything short of an actual phone call,
+rather than approved or lost), the negotiation-outcomes store, and the
+negotiation-outcome endpoint (accepted creates a linked pending payment
+request with the vendor auto-registered as a new recipient; declined
+doesn't; both record regardless) — everything short of an actual phone call,
 which is what `VOICE_TEST_PLAN.md` is for. All of the above run fully
 offline against local SQLite/JSON, regardless of whether Neon is
 configured in `.env` — `tests/test_neon_integration.py` is the separate,

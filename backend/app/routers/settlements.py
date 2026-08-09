@@ -51,6 +51,15 @@ async def execute_settlement(
         response, is_replay = repo.execute_batch(session, batch_id, body.idempotency_key, body.executed_by, DEFAULT_ORG_ID)
         if response is None:
             raise HTTPException(status_code=404, detail="Settlement batch not found")
+        # repo.execute_batch is sync (Session, not AsyncSession) and its
+        # idempotency cache is written before this — the transaction-agent
+        # handoff deliberately sits outside that cache and only fires on a
+        # genuine first execution, same as the mock path below, since
+        # transaction-agent's own POST /requests has no idempotency key and
+        # would open a new thread on every replay otherwise.
+        if not is_replay:
+            handoff = await stage_settlement_batch(response.batch, requested_by=body.executed_by)
+            response = SettlementExecuteResponse(batch=response.batch, transaction_agent=handoff)
 
     if not is_replay:
         await live_feed.broadcast(
