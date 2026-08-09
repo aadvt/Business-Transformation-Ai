@@ -436,13 +436,20 @@ immediately and without argument whenever asked.
 **Google Sheets logging** (`voice/sheets.py`) is a supplementary view for
 the owner, not the source of truth — a service account (machine
 credential, no interactive OAuth), gated so a Sheets failure never blocks
-recording an outcome:
+recording an outcome. A service account on a personal (non-Workspace)
+Google account has no Drive storage of its own, so it can't *create* a
+new spreadsheet (Drive API returns "storage quota exceeded") — the
+standard workaround, and the default here: create a blank sheet yourself,
+share it with the service account's `client_email` as Editor, then:
 
 ```bash
 export GOOGLE_SERVICE_ACCOUNT_JSON="$(cat service-account-key.json)"
-python -m voice.setup_sheet --share-with owner@example.com
-# prints a spreadsheet ID — set NEGOTIATION_SPREADSHEET_ID to it
+python -m voice.setup_sheet --open-existing <sheet_url_or_id>
+# prints the spreadsheet ID — set NEGOTIATION_SPREADSHEET_ID to it
 ```
+
+(`--create --share-with owner@example.com` instead if your service account
+does have Drive quota — e.g. a Workspace domain with a Shared Drive.)
 
 ### Deployment
 
