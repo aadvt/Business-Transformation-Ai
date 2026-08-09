@@ -75,6 +75,25 @@ def test_every_registered_tag_has_a_parseable_stub_response(stub):
         json.loads(response), f"stub response for {tag} is not valid JSON"
 
 
+def test_stub_diagnosis_and_negotiation_bodies_fit_their_schema_length_limits():
+    """StubLLM can't self-correct on a repair round-trip the way a real model
+    can, so a too-long canned string fails BOTH attempts and the agent errors
+    out — this happened once for TAG_DIAGNOSIS_NARRATIVE (290 > 280 chars).
+    Keep every length-constrained canned field within its schema's limit."""
+    import json as _json
+
+    from app.llm.stub_responses import STUB_RESPONSES
+
+    diagnosis = _json.loads(STUB_RESPONSES[prompts.TAG_DIAGNOSIS_NARRATIVE])
+    assert len(diagnosis["narrative"]) <= 280
+
+    negotiation = _json.loads(STUB_RESPONSES[prompts.TAG_NEGOTIATION_BRIEF])
+    assert len(negotiation["briefing"]) <= 300
+
+    outcome = _json.loads(STUB_RESPONSES[prompts.TAG_NEGOTIATION_OUTCOME])
+    assert len(outcome["summary"]) <= 1000
+
+
 def test_stub_never_writes_agent_runs_with_null_recorder(stub):
     # NullAgentRunRecorder is a no-op; this just asserts no exception path.
     stub.complete("s", "u", tag=prompts.TAG_SMOKE_TEST)

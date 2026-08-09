@@ -31,6 +31,8 @@ class Organisation(Base, IdMixin):
     city: Mapped[str] = mapped_column(String(100))
     industry: Mapped[str] = mapped_column(String(100))
     revenue_cr: Mapped[float] = mapped_column(Float)
+    lat: Mapped[float] = mapped_column(Float)
+    lng: Mapped[float] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -46,6 +48,8 @@ class Vendor(Base, IdMixin):
     email: Mapped[str] = mapped_column(String(200))
     city: Mapped[str] = mapped_column(String(100))
     state: Mapped[str] = mapped_column(String(100))
+    lat: Mapped[float] = mapped_column(Float)
+    lng: Mapped[float] = mapped_column(Float)
     languages: Mapped[list] = mapped_column(JSON, default=list)
     reliability_score: Mapped[int] = mapped_column(Integer)
     on_time_rate: Mapped[float] = mapped_column(Float)
@@ -130,6 +134,10 @@ class DisruptionEvent(Base, IdMixin):
     diagnosis_evidence: Mapped[list] = mapped_column(JSON, default=list)
     diagnosis_guardian_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
     diagnosis_guardian_passed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # "LLM" (normal path) or "TEMPLATE" (Guardian failed groundedness twice —
+    # see app.agents.diagnosis — the narrative was generated deterministically
+    # from the exposure breakdown instead of by the model).
+    diagnosis_narrative_source: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
 
 class ExposureCalc(Base, IdMixin):

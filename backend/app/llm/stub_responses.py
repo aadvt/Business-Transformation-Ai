@@ -26,9 +26,9 @@ STUB_RESPONSES: dict[str, str] = {
     ),
     prompts.TAG_DIAGNOSIS_NARRATIVE: (
         '{"root_cause": "VENDOR_CAPACITY", '
-        '"narrative": "Bharat Casting Industries has missed the promised date on this order by four days with no dispatch '
-        'confirmation logged. Their last three orders each slipped by two to three days, which points to a sustained capacity '
-        'shortfall at their Rajkot foundry rather than a one-off transport problem.", '
+        '"narrative": "Bharat Casting Industries missed the promised date by four days with no dispatch confirmation. '
+        'Their last three orders each slipped 2-3 days, pointing to a sustained capacity shortfall at their Rajkot '
+        'foundry rather than a one-off transport problem.", '
         '"evidence": ["PO-SCN-A-001 promised 4 days ago, delivered_at still null", '
         '"Previous three purchase orders for this vendor closed 2-3 days late", '
         '"No inbound WhatsApp reply since the dispatch follow-up was sent"], '

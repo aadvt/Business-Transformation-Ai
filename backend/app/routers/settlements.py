@@ -22,7 +22,7 @@ from app.ws_manager import live_feed
 router = APIRouter(prefix="/api/v1", tags=["settlements"], dependencies=[Depends(require_api_key)])
 
 
-def _execute_mock(batch_id: str, body: SettlementExecuteRequest) -> tuple[SettlementExecuteResponse, bool]:
+async def _execute_mock(batch_id: str, body: SettlementExecuteRequest) -> tuple[SettlementExecuteResponse, bool]:
     cached = store.settlement_execute_idempotency.get(body.idempotency_key)
     if cached is not None:
         return SettlementExecuteResponse.model_validate(cached), True
@@ -46,7 +46,7 @@ async def execute_settlement(
     batch_id: str, body: SettlementExecuteRequest, session: Session = Depends(get_session)
 ) -> SettlementExecuteResponse:
     if settings.use_mocks:
-        response, is_replay = _execute_mock(batch_id, body)
+        response, is_replay = await _execute_mock(batch_id, body)
     else:
         response, is_replay = repo.execute_batch(session, batch_id, body.idempotency_key, body.executed_by, DEFAULT_ORG_ID)
         if response is None:

@@ -5,7 +5,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.agents.sentinel import run_sentinel_loop
 from app.config import settings
+from app.constants import DEFAULT_ORG_ID
 from app.db import keepalive
 from app.db.session import check_connectivity
 from app.mocks.scripted_replay import run_heartbeat, run_scripted_replay
@@ -21,6 +23,7 @@ from app.routers import (
     metrics,
     negotiations,
     settlements,
+    simulate,
     vendors,
 )
 
@@ -39,6 +42,7 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.exception("Database connectivity check FAILED at startup — is DATABASE_URL reachable?")
         keepalive.start()
+        _background_tasks.append(asyncio.create_task(run_sentinel_loop(DEFAULT_ORG_ID)))
 
     _background_tasks.append(asyncio.create_task(run_heartbeat()))
     if settings.mock_live_replay:
@@ -88,6 +92,7 @@ app.include_router(audit.router)
 app.include_router(metrics.router)
 app.include_router(forecast.router)
 app.include_router(negotiations.router)
+app.include_router(simulate.router)
 app.include_router(live.router)
 
 

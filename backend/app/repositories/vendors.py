@@ -52,6 +52,8 @@ def _to_vendor_schema(session: Session, row: VendorRow) -> Vendor:
         languages=row.languages or [],
         city=row.city,
         state=row.state,
+        lat=row.lat,
+        lng=row.lng,
         reliability_score_0_100=row.reliability_score,
         on_time_rate=row.on_time_rate,
         orders_completed=row.orders_completed,

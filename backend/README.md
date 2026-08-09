@@ -1,10 +1,31 @@
-# Sanjeevani — Backend (Phase 2: real persistence)
+# Sanjeevani — Backend (Phase 4a: agents + orchestrator)
 
 FastAPI backend for Sanjeevani, a multi-agent supply-chain disruption system for
-Indian mid-market manufacturers. **Phase 2 adds a real database (Neon Postgres)
-behind the exact same API contract from Phase 1** — no agent/LLM logic yet. See
-`CLAUDE.md` for locked conventions and `CONTRACT.md` for the full endpoint +
-WebSocket reference (unchanged from Phase 1 — that's the point).
+Indian mid-market manufacturers. Phase 2 added a real database (Neon Postgres)
+behind the exact same API contract from Phase 1; Phase 3 wired the model layer
+to watsonx.ai; **Phase 4a adds the three backend agents (Sentinel, Diagnosis,
+Sourcing) and an explicit orchestrator state machine that actually run the
+disruption pipeline.** See `CLAUDE.md` for locked conventions (including the
+governing principle: the LLM never produces a number that reaches the user —
+see `app/services/exposure.py`) and `CONTRACT.md` for the full endpoint +
+WebSocket reference (still unchanged from Phase 1 for every stable endpoint).
+
+## Try it in one command
+
+```bash
+python -m app.seed --reset   # if you haven't already
+uvicorn app.main:app --reload
+
+curl -X POST localhost:8000/api/v1/disruptions/simulate \
+  -H 'Content-Type: application/json' -d '{"scenario":"delivery_delay_castings"}'
+curl -s localhost:8000/api/v1/disruptions/<id-from-above> | python -m json.tool
+```
+
+This runs Sentinel (detects the seeded overdue PO), Diagnosis (computes real
+exposure and gets a Guardian-checked narrative), and Sourcing (ranks and
+verifies alternate vendors) end to end, stopping at `AWAITING_APPROVAL` — the
+mandatory human gate. Expect ~30-90s: several real watsonx calls happen in
+sequence. See `app/agents/`.
 
 ## Quickstart
 
@@ -67,8 +88,14 @@ Full request/response shapes, examples, and the WS event catalogue live in
 ## Seeding the database
 
 ```bash
+# stop any running uvicorn first — see the note below
 python -m app.seed --reset
 ```
+
+**Stop the server before running `--reset`.** It drops and recreates every
+table, which needs a lock the running app's connection pool (and the
+background Sentinel loop) will be holding — you'll hit a real
+`psycopg.errors.DeadlockDetected` otherwise.
 
 - **Deterministic**: fixed random seed — `--reset` always produces the same
   dataset (same vendor names, same PO history, same GSTINs).

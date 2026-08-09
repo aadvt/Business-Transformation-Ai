@@ -374,6 +374,39 @@ See the [WebSocket event catalogue](#websocket-event-catalogue) below.
 
 ---
 
+### `POST /api/v1/disruptions/simulate` (dev-only, Phase 4a)
+
+Not part of the stable contract — a demo/dev trigger, gated on `DEMO_MODE`
+(default on; 404s when off in a real deployment). Runs Sentinel against the
+named seeded golden-path scenario, then the Diagnosis and Sourcing agents,
+stopping at `AWAITING_APPROVAL` (the human gate — see `CLAUDE.md`'s
+orchestrator section).
+
+**Request:** `{ "scenario": "delivery_delay_castings" }`
+
+**Response:**
+```json
+{
+  "disruption_id": "3b0b46e1-...",
+  "scenario": "delivery_delay_castings",
+  "stage": "AWAITING_APPROVAL",
+  "newly_triggered": true
+}
+```
+
+`newly_triggered` is `false` if the scenario's disruption had already
+progressed past `DETECTED` from an earlier call — the endpoint just reports
+its current stage rather than re-running the pipeline. 400 for an unknown
+scenario name; 404 if the seed vendor is missing (reseed with
+`python -m app.seed --reset`); 422 if Sentinel didn't detect the expected
+signal (the golden-path seed data may already be consumed by a prior run).
+
+Follow up with `GET /api/v1/disruptions/{disruption_id}` to see the full
+result — real exposure breakdown, diagnosis, ranked+verified candidates, and
+timeline, all produced by the agents in `app/agents/`.
+
+---
+
 ## Voice/settlement-agent-facing endpoints (Person 3)
 
 ### `GET /api/v1/vendors/{vendor_id}/context`

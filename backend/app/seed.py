@@ -23,7 +23,7 @@ import uuid
 from datetime import timedelta
 from random import Random
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
@@ -59,6 +59,19 @@ ORG_NAME = "Shakti Auto Components Pvt Ltd"
 ORG_CITY = "Pune"
 ORG_INDUSTRY = "Automotive Ancillary"
 ORG_REVENUE_CR = 180.0
+ORG_LAT = 18.5204  # Pune plant — sourcing's geographic-proximity score is measured from here
+ORG_LNG = 73.8567
+
+# City centroid coordinates, reused for every vendor and the plant above so the
+# frontend's network map and the sourcing agent's proximity score agree.
+CITY_COORDS = {
+    "Pune": (18.5204, 73.8567),
+    "Chennai": (13.0827, 80.2707),
+    "Coimbatore": (11.0168, 76.9558),
+    "Ludhiana": (30.9010, 75.8573),
+    "Rajkot": (22.3039, 70.8022),
+    "Jaipur": (26.9124, 75.7873),
+}
 
 # --- Fixed, Phase-1-compatible IDs (see tests/test_contract.py) ---
 V1_ID = "4c34118b-bbe1-4016-885d-e6bc7917b3b0"  # Shree Balaji Auto Components
@@ -192,14 +205,15 @@ def _print_summary(session: Session, scenario_a_po_id: str, scenario_a_vendor: s
     print()
 
 
-def _wipe_all(session: Session) -> None:
-    for model in ALL_MODELS_IN_FK_ORDER:
-        session.execute(delete(model))
-    session.commit()
-
-
 def seed(reset: bool) -> None:
     engine = get_direct_engine()
+
+    if reset:
+        # No Alembic — a --reset always rebuilds the schema from the current
+        # models.py rather than just wiping rows, so an added/changed column
+        # (e.g. Vendor.lat/lng) can never leave a stale table shape behind.
+        print("Dropping and recreating schema...")
+        Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
 
     session = SessionLocal()
@@ -210,9 +224,6 @@ def seed(reset: bool) -> None:
         if already_seeded and not reset:
             print("Already seeded (organisation exists). Pass --reset to wipe and reseed.")
             return
-        if already_seeded and reset:
-            print("Wiping existing data...")
-            _wipe_all(session)
 
         rng = Random(SEED)
         now = utc_now()
@@ -220,7 +231,8 @@ def seed(reset: bool) -> None:
         # --- Organisation ---
         org = Organisation(
             id=ORG_ID, name=ORG_NAME, city=ORG_CITY, industry=ORG_INDUSTRY,
-            revenue_cr=ORG_REVENUE_CR, created_at=now - timedelta(days=900),
+            revenue_cr=ORG_REVENUE_CR, lat=ORG_LAT, lng=ORG_LNG,
+            created_at=now - timedelta(days=900),
         )
         session.add(org)
         session.flush()
@@ -290,6 +302,11 @@ def seed(reset: bool) -> None:
 
 def _build_vendor(rng: Random, vid: str, name: str, city: str, state: str, category: str, gstin: str, is_primary: bool) -> Vendor:
     now = utc_now()
+    base_lat, base_lng = CITY_COORDS[city]
+    # Small deterministic jitter (~a few km) so vendors in the same city don't
+    # all stack on one point on the frontend's network map.
+    lat = round(base_lat + rng.uniform(-0.05, 0.05), 4)
+    lng = round(base_lng + rng.uniform(-0.05, 0.05), 4)
     return Vendor(
         id=vid,
         org_id=ORG_ID,
@@ -301,6 +318,8 @@ def _build_vendor(rng: Random, vid: str, name: str, city: str, state: str, categ
         email=f"contact@{name.lower().split()[0]}{rng.randint(10,99)}.in",
         city=city,
         state=state,
+        lat=lat,
+        lng=lng,
         languages=LANGUAGE_BY_STATE.get(state, ["hi", "en"]),
         # placeholders — overwritten by _derive_vendor_reliability for those with PO history
         reliability_score=rng.randint(50, 70),
