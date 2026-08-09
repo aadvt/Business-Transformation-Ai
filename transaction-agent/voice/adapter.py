@@ -106,6 +106,7 @@ class NegotiationOutcomeBody(BaseModel):
     call_sid: str
     vendor_name: str
     outcome: str  # "accepted" | "declined"
+    contact_person: Optional[str] = None
     agreed_amount: Optional[float] = None
     currency: str = "INR"
     purpose: Optional[str] = None
@@ -405,6 +406,7 @@ def create_app(settings: Optional[VoiceSettings] = None, api_client: Optional[ht
             call_sid=body.call_sid,
             vendor_name=body.vendor_name,
             outcome=body.outcome,
+            contact_person=body.contact_person,
             agreed_amount=body.agreed_amount,
             currency=body.currency,
             purpose=body.purpose,
@@ -418,6 +420,7 @@ def create_app(settings: Optional[VoiceSettings] = None, api_client: Optional[ht
                 "created_at": utcnow_iso(),
                 "call_sid": body.call_sid,
                 "vendor_name": body.vendor_name,
+                "contact_person": body.contact_person,
                 "outcome": body.outcome,
                 "agreed_amount": body.agreed_amount,
                 "currency": body.currency,

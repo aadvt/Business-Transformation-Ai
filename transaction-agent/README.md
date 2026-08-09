@@ -106,8 +106,8 @@ voice/
   nlu.py                        dependency-free selection/DTMF parsing + spoken-text formatting
   adapter.py                    the actual webhook endpoints Bolna's tools call — calls api.py
                                  over HTTP, reshapes responses into spoken_text
-  sheets.py                      Google Sheets logging for negotiation outcomes (service account)
-  setup_sheet.py                  one-time: create + share the negotiation-outcomes sheet
+  sheets.py                      Google Sheets: negotiation-outcome logging + vendor directory read (service account)
+  setup_sheet.py                  one-time: set up the Negotiations + Vendor Directory tabs on a sheet you share with it
   bolna_agent_config.json       the owner-approval Bolna agent (tools + system prompt)
   bolna_negotiation_agent_config.json  the outbound vendor negotiation Bolna agent
   register_agent.py             registers/updates either agent with Bolna's API (dry-run by default)
@@ -432,6 +432,32 @@ to the person directly") relies on whatever transfer/handoff capability is
 already configured on the Bolna number/account — this repo doesn't define
 or override that, only instructs the negotiation prompt to use it
 immediately and without argument whenever asked.
+
+**Business context and per-call variables.** The system prompt is written
+for a specific ICP — Mangalore Grand Pearl Hotel, a 70-room hotel in
+Mangaluru, procurement led by Rajesh Nair, ~60–70 active vendors/month
+across food, beverages, cleaning, linen, and more — so the agent can
+answer "who are you calling on behalf of" convincingly rather than
+sounding like a generic bot. Per-call specifics use Bolna's `{variable}`
+templating (confirmed against its docs, not guessed): the welcome message
+and prompt reference `{vendor_name}`, `{contact_person}`, and `{purpose}`,
+filled in via `user_data` on `POST /call` when the call is placed:
+
+```json
+{
+  "agent_id": "<negotiation agent id>",
+  "recipient_phone_number": "+91...",
+  "from_phone_number": "+918065353754",
+  "user_data": {"vendor_name": "Coastal Seafoods Pvt Ltd", "contact_person": "Suresh Kumar", "purpose": "this week's produce invoice"}
+}
+```
+
+Source that `user_data` from the **Vendor Directory** tab in the same
+spreadsheet as negotiation outcomes (Contact Person, Vendor Name, Phone
+Number, Category, Reference Amount, Notes) — fill it in yourself; nothing
+here auto-populates it. `voice.sheets.get_vendor_directory()` reads it
+back programmatically if you want to script call placement later; for now
+it's a manual reference.
 
 **Google Sheets logging** (`voice/sheets.py`) is a supplementary view for
 the owner, not the source of truth — a service account (machine

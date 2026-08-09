@@ -29,7 +29,16 @@ import os
 import re
 import sys
 
-from voice.sheets import _HEADER, _SCOPES
+from voice.sheets import _HEADER, _SCOPES, VENDOR_DIRECTORY_HEADER
+
+_VENDOR_DIRECTORY_EXAMPLE_ROW = [
+    "EXAMPLE — delete this row",
+    "Coastal Seafoods Pvt Ltd",
+    "+91 90000 00000",
+    "Vegetables, meat & seafood",
+    "45000",
+    "Weekly delivery, net 15",
+]
 
 
 def _extract_id(id_or_url: str) -> str:
@@ -56,7 +65,16 @@ def _init_worksheet(spreadsheet) -> None:
     if ws.title != "Negotiations":
         ws.update_title("Negotiations")
     if ws.row_values(1) != _HEADER:
-        ws.update("A1", [_HEADER])
+        ws.update(range_name="A1", values=[_HEADER])
+
+    try:
+        vendor_ws = spreadsheet.worksheet("Vendor Directory")
+    except Exception:
+        vendor_ws = spreadsheet.add_worksheet(title="Vendor Directory", rows=200, cols=len(VENDOR_DIRECTORY_HEADER))
+    if vendor_ws.row_values(1) != VENDOR_DIRECTORY_HEADER:
+        vendor_ws.update(range_name="A1", values=[VENDOR_DIRECTORY_HEADER])
+    if vendor_ws.row_count >= 2 and not vendor_ws.row_values(2):
+        vendor_ws.update(range_name="A2", values=[_VENDOR_DIRECTORY_EXAMPLE_ROW])
 
 
 def main(argv: list[str]) -> int:

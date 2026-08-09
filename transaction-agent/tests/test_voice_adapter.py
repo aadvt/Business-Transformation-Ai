@@ -380,6 +380,7 @@ def test_negotiation_accepted_records_outcome_and_creates_pending_transaction(tm
         json={
             "call_sid": "neg_call_1",
             "vendor_name": "ABC Traders",
+            "contact_person": "Suresh Kumar",
             "outcome": "accepted",
             "agreed_amount": 4500,
             "purpose": "raw materials",
@@ -395,6 +396,7 @@ def test_negotiation_accepted_records_outcome_and_creates_pending_transaction(tm
     row = rows[0]
     assert row["outcome"] == "accepted"
     assert row["vendor_name"] == "ABC Traders"
+    assert row["contact_person"] == "Suresh Kumar"
     assert row["agreed_amount"] == 4500.0
     assert row["transaction_id"] is not None  # a payment request was created for owner approval
 

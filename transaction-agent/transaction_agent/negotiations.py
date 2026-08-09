@@ -29,6 +29,7 @@ _COLUMNS = (
     "entry_id",
     "call_sid",
     "vendor_name",
+    "contact_person",
     "outcome",
     "agreed_amount",
     "currency",
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS negotiations (
     entry_id TEXT PRIMARY KEY,
     call_sid TEXT NOT NULL,
     vendor_name TEXT NOT NULL,
+    contact_person TEXT,
     outcome TEXT NOT NULL,
     agreed_amount REAL,
     currency TEXT NOT NULL DEFAULT 'INR',
@@ -62,6 +64,9 @@ CREATE TABLE IF NOT EXISTS negotiations (
 def _sqlite_connect(path: str) -> sqlite3.Connection:
     conn = sqlite3.connect(path, check_same_thread=False)
     conn.execute(_CREATE_TABLE)
+    existing_cols = {row[1] for row in conn.execute("PRAGMA table_info(negotiations)").fetchall()}
+    if "contact_person" not in existing_cols:
+        conn.execute("ALTER TABLE negotiations ADD COLUMN contact_person TEXT")
     conn.commit()
     return conn
 
@@ -94,6 +99,7 @@ CREATE TABLE IF NOT EXISTS {_TABLE} (
     entry_id TEXT PRIMARY KEY,
     call_sid TEXT NOT NULL,
     vendor_name TEXT NOT NULL,
+    contact_person TEXT,
     outcome TEXT NOT NULL,
     agreed_amount DOUBLE PRECISION,
     currency TEXT NOT NULL DEFAULT 'INR',
@@ -106,9 +112,14 @@ CREATE TABLE IF NOT EXISTS {_TABLE} (
 """
 
 
+def _pg_ensure_schema(conn) -> None:
+    conn.execute(_PG_CREATE_TABLE)
+    conn.execute(f"ALTER TABLE {_TABLE} ADD COLUMN IF NOT EXISTS contact_person TEXT")
+
+
 def _pg_record(row: dict[str, Any], dsn: str) -> None:
     with db.connect(dsn) as conn:
-        conn.execute(_PG_CREATE_TABLE)
+        _pg_ensure_schema(conn)
         placeholders = ", ".join(["%s"] * len(_COLUMNS))
         conn.execute(
             f"INSERT INTO {_TABLE} ({', '.join(_COLUMNS)}) VALUES ({placeholders})",
@@ -118,7 +129,7 @@ def _pg_record(row: dict[str, Any], dsn: str) -> None:
 
 def _pg_list(dsn: str) -> list[dict[str, Any]]:
     with db.connect(dsn) as conn:
-        conn.execute(_PG_CREATE_TABLE)
+        _pg_ensure_schema(conn)
         rows = conn.execute(f"SELECT {', '.join(_COLUMNS)} FROM {_TABLE} ORDER BY created_at").fetchall()
     return [dict(zip(_COLUMNS, r)) for r in rows]
 
@@ -130,6 +141,7 @@ def record_outcome(
     call_sid: str,
     vendor_name: str,
     outcome: str,
+    contact_person: Optional[str] = None,
     agreed_amount: Optional[float] = None,
     currency: str = "INR",
     purpose: Optional[str] = None,
@@ -145,6 +157,7 @@ def record_outcome(
         "entry_id": entry_id,
         "call_sid": call_sid,
         "vendor_name": vendor_name,
+        "contact_person": contact_person,
         "outcome": outcome,
         "agreed_amount": agreed_amount,
         "currency": currency,
