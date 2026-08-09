@@ -3,7 +3,7 @@
 import { useAgentsStatus, useDisruptions } from "@/lib/queries";
 import AgentStatusStrip from "@/components/AgentStatusStrip";
 import WaterfallPipeline from "@/components/WaterfallPipeline";
-import Skeleton from "@/components/ui/Skeleton";
+import Skeleton from "@/components/ui/skeleton";
 import PageHeader, { EmptyState, SectionHeading } from "@/components/PageHeader";
 import type { DisruptionStage } from "@/lib/types";
 

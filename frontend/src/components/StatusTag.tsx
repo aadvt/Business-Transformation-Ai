@@ -1,4 +1,4 @@
-import Badge from "./ui/Badge";
+import Badge from "./ui/badge";
 import type { DisruptionStage } from "@/lib/types";
 
 const STAGE_CONFIG: Record<DisruptionStage, { tone: "accent" | "alert" | "positive" | "progress" | "idle" | "neutral"; label: string }> = {

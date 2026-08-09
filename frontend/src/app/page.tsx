@@ -7,7 +7,9 @@ import ApprovalCard from "@/components/ApprovalCard";
 import DisruptionRow from "@/components/DisruptionRow";
 import PipelineBoard from "@/components/PipelineBoard";
 import TileGrid from "@/components/ui/TileGrid";
-import Skeleton from "@/components/ui/Skeleton";
+import Skeleton from "@/components/ui/skeleton";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import PageHeader, { EmptyState, SectionHeading } from "@/components/PageHeader";
 
 function ApprovalCardLoader({ id }: { id: string }) {
@@ -101,50 +103,55 @@ export default function WarRoomPage() {
           <Skeleton className="h-40" />
         ) : (
           <div className="panel-flush">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-line">
-                  <th className="eyebrow px-4 py-2 font-semibold">Vendor</th>
-                  <th className="eyebrow px-4 py-2 font-semibold">Category</th>
-                  <th className="eyebrow px-4 py-2 font-semibold">Location</th>
-                  <th className="eyebrow px-4 py-2 text-right font-semibold">On-time</th>
-                  <th className="eyebrow px-4 py-2 text-right font-semibold">Outstanding</th>
-                  <th className="eyebrow px-4 py-2 font-semibold">Reliability</th>
-                </tr>
-              </thead>
-              <tbody>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Vendor</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Location</TableHead>
+                  <TableHead className="text-right">On-time</TableHead>
+                  <TableHead className="text-right">Outstanding</TableHead>
+                  <TableHead>Reliability</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {(vendors?.items ?? []).map((v) => (
-                  <tr key={v.id} className="row-hover border-b border-line last:border-b-0">
-                    <td className="px-4 py-2 text-[13px] font-medium text-ink">{v.name}</td>
-                    <td className="px-4 py-2 text-[13px] text-ink-muted">{v.category}</td>
-                    <td className="px-4 py-2 text-[13px] text-ink-muted">
+                  <TableRow key={v.id}>
+                    <TableCell className="font-medium">{v.name}</TableCell>
+                    <TableCell className="text-ink-muted">{v.category}</TableCell>
+                    <TableCell className="text-ink-muted">
                       {v.city}, {v.state}
-                    </td>
-                    <td className="numeric px-4 py-2 text-right text-[13px] text-ink-muted">
+                    </TableCell>
+                    <TableCell className="numeric text-right text-ink-muted">
                       {Math.round(v.on_time_rate * 100)}%
-                    </td>
-                    <td className="numeric px-4 py-2 text-right text-[13px] text-ink">{v.dues_display}</td>
-                    <td className="px-4 py-2">
-                      <div className="flex items-center gap-2">
-                        <span className="h-1 w-14 overflow-hidden rounded-sm bg-surface-3">
-                          <span
-                            className={
-                              v.reliability_score_0_100 >= 80
-                                ? "block h-full bg-success"
-                                : v.reliability_score_0_100 >= 60
-                                  ? "block h-full bg-warning"
-                                  : "block h-full bg-critical"
-                            }
-                            style={{ width: `${v.reliability_score_0_100}%` }}
-                          />
-                        </span>
-                        <span className="numeric text-xs text-ink-muted">{v.reliability_score_0_100}</span>
-                      </div>
-                    </td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="numeric text-right">{v.dues_display}</TableCell>
+                    <TableCell>
+                      <Tooltip>
+                        <TooltipTrigger className="flex items-center gap-2">
+                          <span className="h-1 w-14 overflow-hidden rounded-sm bg-surface-3">
+                            <span
+                              className={
+                                v.reliability_score_0_100 >= 80
+                                  ? "block h-full bg-success"
+                                  : v.reliability_score_0_100 >= 60
+                                    ? "block h-full bg-warning"
+                                    : "block h-full bg-critical"
+                              }
+                              style={{ width: `${v.reliability_score_0_100}%` }}
+                            />
+                          </span>
+                          <span className="numeric text-xs text-ink-muted">{v.reliability_score_0_100}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {v.orders_completed} orders completed · {v.disputes} dispute{v.disputes === 1 ? "" : "s"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
                 ))}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         )}
       </section>
