@@ -515,10 +515,28 @@ export interface WSEventPayloads {
   // against a real CONTRACT.md the moment one actually exists.
   IMPACT_COMPUTED: { node_count: number; impacted_node_ids: string[]; max_severity_state: GraphNodeState };
   PLAN_PROPOSED: { plan_id: string; changes: { kind: PlanChangeKind; description: string }[] };
-  CALL_STARTED: { call_id: string; vendor_id: string; status: CallStatus };
-  CALL_TRANSCRIPT: { call_id: string; speaker: string; text: string };
-  CALL_FIELD_EXTRACTED: { call_id: string; field: string; value: string | number };
-  CALL_ENDED: { call_id: string; status: CallStatus; duration_seconds: number };
+  CALL_STARTED: {
+    call_id: string;
+    vendor_id: string;
+    vendor_name: string;
+    status: CallStatus;
+    language: string | null;
+    phone: string | null;
+    briefing_snapshot: Partial<CallBriefingSnapshot>;
+    guardrails: Partial<CallGuardrails>;
+    source: "LIVE_BOLNA" | "REPLAY";
+  };
+  CALL_TRANSCRIPT: { call_id: string; phase: "POST_CALL_REVEAL"; seq: number; speaker: string; text: string; at_offset_ms: number | null };
+  CALL_FIELD_EXTRACTED: { call_id: string; field: string } & CallFieldValidation;
+  CALL_ENDED: {
+    call_id: string;
+    status: CallStatus | string;
+    outcome: CallOutcome;
+    guardian: CallGuardianInfo;
+    new_stage: DisruptionStage | null;
+    exposure_after: { total_paise: number; total_display: string } | null;
+    duration_seconds: number;
+  };
   INGEST_PROGRESS: { ingest_id: string; status: IngestStatus; progress_pct: number };
   BRIEFING_READY: { vendor_id: string; briefing: string };
   AGENT_SHEET_SYNCED: AgentSheetSync;
@@ -680,6 +698,11 @@ export interface PublicVendor {
   reliability_score_0_100: number;
   languages: string[];
   verified: boolean;
+  // `verified` means GSTIN *and* Udyam passed. Udyam needs a live provider, so
+  // a vendor can have a fully valid GSTIN and still not be `verified` — the
+  // search card badge distinguishes the two rather than calling both
+  // "unverified". Optional: fixture data predates it.
+  gstin_verified?: boolean;
   gstin_masked: string;
 }
 
@@ -770,6 +793,82 @@ export interface Plan {
   escalation_reason: string | null;
   solver: SolverName;
   solve_ms: number;
+}
+
+// ---- Call session (D5b) — POST /api/v1/calls/start, GET /api/v1/calls/{id},
+// POST /api/v1/calls/{id}/replay, and the CALL_* WS events emitted by the
+// Bolna post-call webhook's reveal. ----
+
+export interface CallBriefingSnapshot {
+  vendor_id: string;
+  vendor_name: string;
+  phone: string;
+  language: string;
+  category: string;
+  item_name: string;
+  required_qty: number;
+  target_unit_price: string;
+  max_unit_price: string;
+  max_lead_time_days: number;
+  last_agreed_price: string;
+  reliability: string;
+  briefing: string;
+  updated_at: string;
+}
+
+export interface CallGuardrails {
+  max_unit_price_paise: number;
+  max_unit_price_display: string;
+  max_lead_time_days: number;
+}
+
+export interface CallTranscriptTurn {
+  seq: number;
+  speaker: string;
+  text: string;
+  at_offset_ms: number | null;
+}
+
+export interface CallFieldValidation {
+  value: string | number | boolean | null;
+  valid: boolean;
+  reason?: string;
+  exceeds_guardrail?: boolean;
+}
+
+export interface CallGuardianInfo {
+  status: string;
+  passed: boolean;
+  needs_human_review?: boolean;
+  is_real_guardian: boolean;
+  label: string;
+}
+
+export type CallOutcome = "CONFIRMED" | "NEEDS_REVIEW" | "INCOMPLETE";
+
+export interface CallSession {
+  id: string;
+  disruption_id: string | null;
+  vendor_id: string | null;
+  status: string;
+  source: "LIVE_BOLNA" | "REPLAY";
+  started_at: string;
+  ended_at: string | null;
+  language: string | null;
+  phone: string | null;
+  briefing_snapshot: Partial<CallBriefingSnapshot>;
+  guardrails: Partial<CallGuardrails>;
+  transcript: CallTranscriptTurn[];
+  extracted: Record<string, unknown>;
+  validation: { parse_warnings?: string[]; fields?: Record<string, CallFieldValidation> };
+  correlation_method: string | null;
+  outcome_status: string | null;
+}
+
+export interface CallStartRequest {
+  disruption_id: string;
+  vendor_id: string;
+  mode: "LIVE" | "REPLAY";
 }
 
 // ---- Phone mock (D4) — GET /api/v1/phone/messages backing the WhatsApp Web

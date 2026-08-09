@@ -21,9 +21,14 @@ from app.services.audit import append_audit
 
 def _to_schema(session: Session, row: SettlementBatchRow) -> SettlementBatch:
     items = session.execute(select(SettlementItem).where(SettlementItem.batch_id == row.id)).scalars().all()
+    # One vendor lookup for the whole batch rather than one per invoice line.
+    vendor_ids = {i.vendor_id for i in items}
+    vendors_by_id = {
+        v.id: v for v in session.execute(select(VendorRow).where(VendorRow.id.in_(vendor_ids))).scalars().all()
+    } if vendor_ids else {}
     lines: list[SettlementLine] = []
     for item in items:
-        vendor = session.get(VendorRow, item.vendor_id)
+        vendor = vendors_by_id.get(item.vendor_id)
         lines.append(
             SettlementLine(
                 vendor=VendorRef(id=vendor.id, name=vendor.name, gstin=vendor.gstin) if vendor else VendorRef(id=item.vendor_id, name="Unknown", gstin=""),

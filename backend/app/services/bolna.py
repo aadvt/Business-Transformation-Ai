@@ -3,10 +3,12 @@ import re
 from datetime import datetime, timezone
 
 FIELD_PATHS = {
+    "availability_confirmed": ("extracted_data", "availability_confirmed"),
     "unit_price": ("extracted_data", "unit_price"),
-    "delivery_date": ("extracted_data", "delivery_date"),
-    "upi_id": ("extracted_data", "upi_id"),
     "quantity": ("extracted_data", "quantity"),
+    "delivery_date": ("extracted_data", "delivery_date"),
+    "payment_terms_days": ("extracted_data", "payment_terms_days"),
+    "upi_id": ("extracted_data", "upi_id"),
     "gstin": ("extracted_data", "gstin"),
     "vendor_id": ("extracted_data", "vendor_id"),
 }
@@ -52,6 +54,8 @@ def parse_bolna_payload(raw: dict) -> ParsedCall:
 
 def validate_extracted(extracted: dict, guardrails: dict | None = None) -> dict:
     guardrails, result = guardrails or {}, {}
+    availability = extracted.get("availability_confirmed")
+    result["availability_confirmed"] = {"value": bool(availability) if availability is not None else None, "valid": availability is not None, **({"reason": "not discussed on the call"} if availability is None else {})}
     price = extracted.get("unit_price")
     try:
         paise = round(float(str(price).replace(",", "").replace("₹", "")) * 100)
@@ -60,12 +64,17 @@ def validate_extracted(extracted: dict, guardrails: dict | None = None) -> dict:
     quantity = extracted.get("quantity")
     try: result["quantity"] = {"value": int(quantity), "valid": int(quantity) > 0}
     except (TypeError, ValueError): result["quantity"] = {"value": quantity, "valid": False, "reason": "missing or must be a positive integer"}
+    terms = extracted.get("payment_terms_days")
+    try: result["payment_terms_days"] = {"value": int(terms), "valid": int(terms) >= 0}
+    except (TypeError, ValueError): result["payment_terms_days"] = {"value": terms, "valid": False, "reason": "not discussed on the call"}
     upi = extracted.get("upi_id")
     upi_valid = upi is None or bool(re.fullmatch(r"[A-Za-z0-9._-]+@[A-Za-z0-9.-]+", str(upi)))
     result["upi_id"] = {"value": upi, "valid": upi_valid, **({"reason": "invalid UPI id"} if not upi_valid else {})}
     date_value = extracted.get("delivery_date")
     try:
-        parsed = datetime.fromisoformat(str(date_value).replace("Z", "+00:00")); result["delivery_date"] = {"value": date_value, "valid": parsed > datetime.now(timezone.utc)}
+        parsed = datetime.fromisoformat(str(date_value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None: parsed = parsed.replace(tzinfo=timezone.utc)  # bare dates parse naive; comparing naive to aware raises
+        result["delivery_date"] = {"value": date_value, "valid": parsed > datetime.now(timezone.utc)}
     except (TypeError, ValueError): result["delivery_date"] = {"value": date_value, "valid": False, "reason": "missing or invalid date"}
     gstin = extracted.get("gstin")
     result["gstin"] = {"value": gstin, "valid": gstin is None or bool(re.fullmatch(r"[0-9A-Z]{15}", str(gstin)))}

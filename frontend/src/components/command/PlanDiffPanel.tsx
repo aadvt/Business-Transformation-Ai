@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import clsx from "clsx";
 import { formatPaiseFull } from "@/lib/format";
+import PaymentSplitFlow, { type SplitRecipient } from "./PaymentSplitFlow";
 import type { Plan, PlanChangeDetail, PlanChangeKind, PlanRowItem } from "@/lib/types";
 
 const KIND_LABEL: Record<PlanChangeKind, string> = {
@@ -145,6 +146,30 @@ export default function PlanDiffPanel({ plan }: { plan: Plan }) {
 
   const exposureAnimated = useCountBetween(plan.exposure_before_paise, plan.exposure_after_paise, visible, 900);
 
+  // Order.co-style: the proposed plan is ONE payment fanned out across the
+  // vendors (and any internal stock pull) it splits into.
+  const splitRecipients = useMemo<SplitRecipient[]>(() => {
+    const byVendor = new Map<string, SplitRecipient>();
+    for (const change of plan.changes) {
+      for (const row of change.proposed) {
+        const key = row.vendor_id || row.vendor_name;
+        const amount = row.qty * row.unit_price_paise;
+        const existing = byVendor.get(key);
+        if (existing) existing.amount_paise += amount;
+        else
+          byVendor.set(key, {
+            id: key,
+            name: row.vendor_name,
+            amount_paise: amount,
+            detail: `${row.qty.toLocaleString("en-IN")} × ${row.unit_price_display} · ${row.lead_time_days}d lead`,
+            internal: change.kind === "PULL_FORWARD_STOCK",
+          });
+      }
+    }
+    return [...byVendor.values()];
+  }, [plan]);
+  const splitTotal = splitRecipients.reduce((sum, r) => sum + r.amount_paise, 0);
+
   useEffect(() => {
     function measure() {
       const container = containerRef.current;
@@ -193,10 +218,14 @@ export default function PlanDiffPanel({ plan }: { plan: Plan }) {
 
       <div className="border-b border-line px-4 py-3">
         <p className="text-[13.5px] text-ink">
+          {/* The BEFORE figure stays put and the AFTER one counts down into it.
+              Animating the left number instead meant that once the 900ms
+              landed, the line read "₹0 → ₹0" and the whole saving story
+              disappeared for anyone who looked a second late. */}
           Exposure{" "}
-          <span className="numeric font-semibold text-ink">{formatPaiseFull(exposureAnimated)}</span>
+          <span className="numeric font-semibold text-ink">{plan.exposure_before_display}</span>
           {" → "}
-          <span className="numeric font-semibold text-ink">{plan.exposure_after_display}</span>
+          <span className="numeric font-semibold text-success">{formatPaiseFull(exposureAnimated)}</span>
           <span className="mx-2 text-ink-faint">·</span>
           Cost to resolve <span className="numeric font-medium text-ink">{plan.cost_to_resolve_display}</span>
           <span className="mx-2 text-ink-faint">·</span>
@@ -205,6 +234,16 @@ export default function PlanDiffPanel({ plan }: { plan: Plan }) {
       </div>
 
       <div ref={containerRef} className="relative flex-1 overflow-y-auto p-4">
+        {splitRecipients.length > 0 && (
+          <div className="mb-4">
+            <PaymentSplitFlow
+              totalPaise={splitTotal}
+              recipients={splitRecipients}
+              note="The business pays once; Sanjeevani routes each vendor's share when the plan settles."
+            />
+          </div>
+        )}
+
         <div className="mb-2 grid grid-cols-2 gap-3">
           <p className="eyebrow">Current plan</p>
           <p className="eyebrow">Proposed plan</p>
@@ -225,8 +264,8 @@ export default function PlanDiffPanel({ plan }: { plan: Plan }) {
 
       <div className="border-t border-line px-4 py-2 text-[11px] text-ink-faint">
         {plan.solver === "OR_TOOLS_CP_SAT"
-          ? `Solved by OR-Tools CP-SAT in ${plan.solve_ms}ms`
-          : `Solved by greedy fallback in ${plan.solve_ms}ms (CP-SAT unavailable)`}
+          ? `Solved by OR-Tools CP-SAT in ${Math.round(plan.solve_ms)}ms`
+          : `Solved by greedy fallback in ${Math.round(plan.solve_ms)}ms (CP-SAT unavailable)`}
       </div>
     </div>
   );

@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     google_service_account_json: str = ""
     bolna_webhook_public_url: str = "https://affecting-gains-thinner.ngrok-free.dev"
     bolna_webhook_secret: str = ""
+    webhook_timeout_seconds: int = 120
+    llm_record: bool = False
+    llm_replay: bool = False
+    verification_replay: bool = False
+    demo_reveal_speed: str = "1x"
 
     @property
     def watsonx_configured(self) -> bool:

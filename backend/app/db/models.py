@@ -62,6 +62,7 @@ class Vendor(Base, IdMixin):
     price_band: Mapped[str] = mapped_column(String(50), default="Standard")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    source_file_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
 class PurchaseOrder(Base, IdMixin):
@@ -81,6 +82,7 @@ class PurchaseOrder(Base, IdMixin):
     downstream_order_ref: Mapped[str | None] = mapped_column(String(50), nullable=True)
     downstream_order_value_paise: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     penalty_rate_bps: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_file_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
 class InventorySnapshot(Base, IdMixin):
@@ -92,6 +94,7 @@ class InventorySnapshot(Base, IdMixin):
     on_hand_qty: Mapped[float] = mapped_column(Float)
     reorder_point: Mapped[float] = mapped_column(Float)
     daily_consumption: Mapped[float] = mapped_column(Float)
+    source_file_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
 
 class CommEvent(Base, IdMixin):
@@ -297,6 +300,21 @@ class CallSession(Base, IdMixin):
     outcome_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     guardian_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     guardian_detail: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class BusinessProfile(Base, IdMixin):
+    __tablename__ = "business_profiles"
+
+    org_id: Mapped[str] = mapped_column(String(36), ForeignKey("organisations.id"), unique=True, index=True)
+    vendor_count: Mapped[int] = mapped_column(Integer, default=0)
+    item_count: Mapped[int] = mapped_column(Integer, default=0)
+    categories: Mapped[list] = mapped_column(JSON, default=list)
+    avg_payment_cycle_days: Mapped[float] = mapped_column(Float, default=0)
+    peak_months: Mapped[list] = mapped_column(JSON, default=list)
+    plant_locations: Mapped[list] = mapped_column(JSON, default=list)
+    top_dependencies: Mapped[list] = mapped_column(JSON, default=list)
+    answers: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class AgentRun(Base, IdMixin):

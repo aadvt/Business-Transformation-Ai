@@ -57,6 +57,11 @@ class SourcingCandidate(ApiModel):
     quoted_lead_time_days: int
     quoted_unit_price_paise: int
     score_components: dict | None = None  # {reliability, lead_time, price, geography, relationship}
+    # Display enrichment for the /command candidate rail (all optional).
+    distance_km: float | None = None
+    reliability_score_0_100: int | None = None
+    languages: list[str] | None = None
+    price_delta_pct: float | None = None
 
 
 class Approval(ApiModel):

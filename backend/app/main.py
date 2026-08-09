@@ -18,6 +18,9 @@ from app.routers import (
     approvals,
     agent,
     webhooks,
+    ingest,
+    business,
+    briefing,
     audit,
     dashboard,
     demo,
@@ -97,6 +100,9 @@ app.include_router(dashboard.router)
 app.include_router(approvals.router)
 app.include_router(agent.router)
 app.include_router(webhooks.router)
+app.include_router(ingest.router)
+app.include_router(business.router)
+app.include_router(briefing.router)
 app.include_router(settlements.router)
 app.include_router(audit.router)
 app.include_router(metrics.router)

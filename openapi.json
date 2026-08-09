@@ -254,7 +254,7 @@
           "disruptions"
         ],
         "summary": "Get Disruption Plan",
-        "description": "Fetch the latest remediation plan for a disruption.",
+        "description": "Latest remediation plan, shaped as the two-sided diff the frontend's\nPlanDiffPanel renders: incumbent PO lines on the left, the solver's\nproposed allocation on the right.",
         "operationId": "get_disruption_plan_api_v1_disruptions__disruption_id__plan_get",
         "parameters": [
           {
@@ -289,7 +289,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/RemediationPlan"
+                  "$ref": "#/components/schemas/PlanDiffResponse"
                 }
               }
             }
@@ -823,6 +823,452 @@
         }
       }
     },
+    "/api/v1/agent/vendor-sheet.csv": {
+      "get": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Vendor Sheet Csv",
+        "operationId": "vendor_sheet_csv_api_v1_agent_vendor_sheet_csv_get",
+        "parameters": [
+          {
+            "name": "disruption_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Disruption Id"
+            }
+          },
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agent/sync-sheet": {
+      "post": {
+        "tags": [
+          "agent"
+        ],
+        "summary": "Sync Vendor Sheet",
+        "operationId": "sync_vendor_sheet_api_v1_agent_sync_sheet_post",
+        "parameters": [
+          {
+            "name": "x-api-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calls/start": {
+      "post": {
+        "tags": [
+          "calls"
+        ],
+        "summary": "Start Call",
+        "operationId": "start_call_api_v1_calls_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CallStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calls/{call_id}": {
+      "get": {
+        "tags": [
+          "calls"
+        ],
+        "summary": "Get Call",
+        "operationId": "get_call_api_v1_calls__call_id__get",
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/calls/{call_id}/replay": {
+      "post": {
+        "tags": [
+          "calls"
+        ],
+        "summary": "Replay Call",
+        "operationId": "replay_call_api_v1_calls__call_id__replay_post",
+        "parameters": [
+          {
+            "name": "call_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Call Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CallSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/bolna": {
+      "post": {
+        "tags": [
+          "calls"
+        ],
+        "summary": "Receive Bolna Webhook",
+        "operationId": "receive_bolna_webhook_api_v1_webhooks_bolna_post",
+        "parameters": [
+          {
+            "name": "x-voice-adapter-secret",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Voice-Adapter-Secret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/bolna/health": {
+      "get": {
+        "tags": [
+          "calls"
+        ],
+        "summary": "Bolna Health",
+        "operationId": "bolna_health_api_v1_webhooks_bolna_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ingest/files": {
+      "post": {
+        "tags": [
+          "ingest"
+        ],
+        "summary": "Ingest Files",
+        "operationId": "ingest_files_api_v1_ingest_files_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_ingest_files_api_v1_ingest_files_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/business/questions": {
+      "get": {
+        "tags": [
+          "business"
+        ],
+        "summary": "Questions",
+        "operationId": "questions_api_v1_business_questions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/business/profile": {
+      "get": {
+        "tags": [
+          "business"
+        ],
+        "summary": "Profile",
+        "operationId": "profile_api_v1_business_profile_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/business/answers": {
+      "post": {
+        "tags": [
+          "business"
+        ],
+        "summary": "Answers",
+        "operationId": "answers_api_v1_business_answers_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Answers"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/briefing": {
+      "get": {
+        "tags": [
+          "briefing"
+        ],
+        "summary": "Get Briefing",
+        "operationId": "get_briefing_api_v1_briefing_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/settlements/{batch_id}/execute": {
       "post": {
         "tags": [
@@ -1263,7 +1709,6 @@
           "phone"
         ],
         "summary": "Get Phone Messages",
-        "description": "Message thread for the WhatsApp mock UI, derived from DB state.\n\nIncludes: disruption alerts, approval cards, outcomes, settlement updates.\nNo actual WhatsApp/Twilio integration — this is the honest deliverable.",
         "operationId": "get_phone_messages_api_v1_phone_messages_get",
         "parameters": [
           {
@@ -1271,7 +1716,14 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
               "title": "Disruption Id"
             }
           },
@@ -1632,6 +2084,19 @@
         ],
         "title": "AgentsStatusResponse"
       },
+      "Answers": {
+        "properties": {
+          "answers": {
+            "type": "object",
+            "title": "Answers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers"
+        ],
+        "title": "Answers"
+      },
       "Approval": {
         "properties": {
           "id": {
@@ -1845,6 +2310,182 @@
           "entries"
         ],
         "title": "AuditTrail"
+      },
+      "Body_ingest_files_api_v1_ingest_files_post": {
+        "properties": {
+          "files": {
+            "items": {
+              "type": "string",
+              "format": "binary"
+            },
+            "type": "array",
+            "title": "Files"
+          }
+        },
+        "type": "object",
+        "required": [
+          "files"
+        ],
+        "title": "Body_ingest_files_api_v1_ingest_files_post"
+      },
+      "CallSessionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "disruption_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disruption Id"
+          },
+          "vendor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vendor Id"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "started_at": {
+            "type": "string",
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "briefing_snapshot": {
+            "type": "object",
+            "title": "Briefing Snapshot"
+          },
+          "guardrails": {
+            "type": "object",
+            "title": "Guardrails"
+          },
+          "transcript": {
+            "items": {},
+            "type": "array",
+            "title": "Transcript"
+          },
+          "extracted": {
+            "type": "object",
+            "title": "Extracted"
+          },
+          "validation": {
+            "type": "object",
+            "title": "Validation"
+          },
+          "correlation_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Correlation Method"
+          },
+          "outcome_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcome Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "disruption_id",
+          "vendor_id",
+          "status",
+          "source",
+          "started_at",
+          "briefing_snapshot",
+          "guardrails",
+          "transcript",
+          "extracted",
+          "validation"
+        ],
+        "title": "CallSessionResponse"
+      },
+      "CallStartRequest": {
+        "properties": {
+          "disruption_id": {
+            "type": "string",
+            "title": "Disruption Id"
+          },
+          "vendor_id": {
+            "type": "string",
+            "title": "Vendor Id"
+          },
+          "mode": {
+            "type": "string",
+            "pattern": "^(LIVE|REPLAY)$",
+            "title": "Mode",
+            "default": "LIVE"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "disruption_id",
+          "vendor_id"
+        ],
+        "title": "CallStartRequest"
       },
       "CandidateVerification": {
         "properties": {
@@ -2335,24 +2976,6 @@
         ],
         "title": "ExposureBreakdownItem"
       },
-      "ExposureSnapshot": {
-        "properties": {
-          "exposure_paise": {
-            "type": "integer",
-            "title": "Exposure Paise"
-          },
-          "exposure_display": {
-            "type": "string",
-            "title": "Exposure Display"
-          }
-        },
-        "type": "object",
-        "required": [
-          "exposure_paise",
-          "exposure_display"
-        ],
-        "title": "ExposureSnapshot"
-      },
       "Forecast": {
         "properties": {
           "sku": {
@@ -2616,13 +3239,21 @@
       },
       "ImpactSummary": {
         "properties": {
-          "exposure_total_paise": {
+          "impacted_node_count": {
             "type": "integer",
-            "title": "Exposure Total Paise"
+            "title": "Impacted Node Count"
           },
-          "exposure_total_display": {
+          "at_risk_order_count": {
+            "type": "integer",
+            "title": "At Risk Order Count"
+          },
+          "exposure_paise": {
+            "type": "integer",
+            "title": "Exposure Paise"
+          },
+          "exposure_display": {
             "type": "string",
-            "title": "Exposure Total Display"
+            "title": "Exposure Display"
           },
           "exposure_confidence": {
             "type": "number",
@@ -2639,9 +3270,9 @@
             ],
             "title": "Exposure Calc Id"
           },
-          "severity_tier": {
-            "type": "integer",
-            "title": "Severity Tier"
+          "tier": {
+            "type": "string",
+            "title": "Tier"
           },
           "tier_thresholds_paise": {
             "additionalProperties": {
@@ -2654,11 +3285,13 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
-          "exposure_total_paise",
-          "exposure_total_display",
+          "impacted_node_count",
+          "at_risk_order_count",
+          "exposure_paise",
+          "exposure_display",
           "exposure_confidence",
           "exposure_calc_id",
-          "severity_tier",
+          "tier",
           "tier_thresholds_paise"
         ],
         "title": "ImpactSummary",
@@ -2987,13 +3620,104 @@
         ],
         "title": "NegotiationTerm"
       },
-      "PlanChange": {
+      "PlanChangeDetail": {
         "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
           "kind": {
             "type": "string",
             "title": "Kind"
           },
-          "vendor_id": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "current": {
+            "items": {
+              "$ref": "#/components/schemas/PlanRowItem"
+            },
+            "type": "array",
+            "title": "Current"
+          },
+          "proposed": {
+            "items": {
+              "$ref": "#/components/schemas/PlanRowItem"
+            },
+            "type": "array",
+            "title": "Proposed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "description",
+          "rationale",
+          "current",
+          "proposed"
+        ],
+        "title": "PlanChangeDetail"
+      },
+      "PlanDiffResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "disruption_id": {
+            "type": "string",
+            "title": "Disruption Id"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/PlanChangeDetail"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "exposure_before_paise": {
+            "type": "integer",
+            "title": "Exposure Before Paise"
+          },
+          "exposure_before_display": {
+            "type": "string",
+            "title": "Exposure Before Display"
+          },
+          "exposure_after_paise": {
+            "type": "integer",
+            "title": "Exposure After Paise"
+          },
+          "exposure_after_display": {
+            "type": "string",
+            "title": "Exposure After Display"
+          },
+          "cost_to_resolve_paise": {
+            "type": "integer",
+            "title": "Cost To Resolve Paise"
+          },
+          "cost_to_resolve_display": {
+            "type": "string",
+            "title": "Cost To Resolve Display"
+          },
+          "net_saving_paise": {
+            "type": "integer",
+            "title": "Net Saving Paise"
+          },
+          "net_saving_display": {
+            "type": "string",
+            "title": "Net Saving Display"
+          },
+          "requires_escalation": {
+            "type": "boolean",
+            "title": "Requires Escalation"
+          },
+          "escalation_reason": {
             "anyOf": [
               {
                 "type": "string"
@@ -3002,22 +3726,49 @@
                 "type": "null"
               }
             ],
+            "title": "Escalation Reason"
+          },
+          "solver": {
+            "type": "string",
+            "title": "Solver"
+          },
+          "solve_ms": {
+            "type": "number",
+            "title": "Solve Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "disruption_id",
+          "changes",
+          "exposure_before_paise",
+          "exposure_before_display",
+          "exposure_after_paise",
+          "exposure_after_display",
+          "cost_to_resolve_paise",
+          "cost_to_resolve_display",
+          "net_saving_paise",
+          "net_saving_display",
+          "requires_escalation",
+          "solver",
+          "solve_ms"
+        ],
+        "title": "PlanDiffResponse"
+      },
+      "PlanRowItem": {
+        "properties": {
+          "vendor_id": {
+            "type": "string",
             "title": "Vendor Id"
           },
           "vendor_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
+            "type": "string",
             "title": "Vendor Name"
           },
-          "item_sku": {
+          "item": {
             "type": "string",
-            "title": "Item Sku"
+            "title": "Item"
           },
           "qty": {
             "type": "integer",
@@ -3035,27 +3786,23 @@
             "type": "integer",
             "title": "Lead Time Days"
           },
-          "eta_date": {
+          "eta": {
             "type": "string",
-            "title": "Eta Date"
-          },
-          "rationale": {
-            "type": "string",
-            "title": "Rationale",
-            "default": ""
+            "title": "Eta"
           }
         },
         "type": "object",
         "required": [
-          "kind",
-          "item_sku",
+          "vendor_id",
+          "vendor_name",
+          "item",
           "qty",
           "unit_price_paise",
           "unit_price_display",
           "lead_time_days",
-          "eta_date"
+          "eta"
         ],
-        "title": "PlanChange"
+        "title": "PlanRowItem"
       },
       "PublicVendor": {
         "properties": {
@@ -3220,91 +3967,6 @@
           "disputes"
         ],
         "title": "Reliability"
-      },
-      "RemediationPlan": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "disruption_id": {
-            "type": "string",
-            "title": "Disruption Id"
-          },
-          "created_at": {
-            "type": "string",
-            "title": "Created At"
-          },
-          "changes": {
-            "items": {
-              "$ref": "#/components/schemas/PlanChange"
-            },
-            "type": "array",
-            "title": "Changes"
-          },
-          "before": {
-            "$ref": "#/components/schemas/ExposureSnapshot"
-          },
-          "after": {
-            "$ref": "#/components/schemas/ExposureSnapshot"
-          },
-          "cost_to_resolve_paise": {
-            "type": "integer",
-            "title": "Cost To Resolve Paise"
-          },
-          "cost_to_resolve_display": {
-            "type": "string",
-            "title": "Cost To Resolve Display"
-          },
-          "net_saving_paise": {
-            "type": "integer",
-            "title": "Net Saving Paise"
-          },
-          "net_saving_display": {
-            "type": "string",
-            "title": "Net Saving Display"
-          },
-          "requires_escalation": {
-            "type": "boolean",
-            "title": "Requires Escalation"
-          },
-          "escalation_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Escalation Reason"
-          },
-          "solve_ms": {
-            "type": "number",
-            "title": "Solve Ms"
-          },
-          "solver": {
-            "type": "string",
-            "title": "Solver"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "disruption_id",
-          "created_at",
-          "changes",
-          "before",
-          "after",
-          "cost_to_resolve_paise",
-          "cost_to_resolve_display",
-          "net_saving_paise",
-          "net_saving_display",
-          "requires_escalation",
-          "solve_ms",
-          "solver"
-        ],
-        "title": "RemediationPlan"
       },
       "RootCause": {
         "type": "string",
@@ -3706,6 +4368,53 @@
               }
             ],
             "title": "Score Components"
+          },
+          "distance_km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Km"
+          },
+          "reliability_score_0_100": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reliability Score 0 100"
+          },
+          "languages": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Languages"
+          },
+          "price_delta_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Delta Pct"
           }
         },
         "additionalProperties": false,
@@ -3737,6 +4446,23 @@
           "count"
         ],
         "title": "StageCount"
+      },
+      "SyncRequest": {
+        "properties": {
+          "disruption_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disruption Id"
+          }
+        },
+        "type": "object",
+        "title": "SyncRequest"
       },
       "TimelineEvent": {
         "properties": {
@@ -4215,7 +4941,8 @@
           },
           "email": {
             "type": "string",
-            "title": "Email"
+            "title": "Email",
+            "default": ""
           },
           "languages": {
             "items": {
@@ -4226,7 +4953,19 @@
           },
           "capacity_hint": {
             "type": "string",
-            "title": "Capacity Hint"
+            "title": "Capacity Hint",
+            "default": "Medium"
+          },
+          "capacity_units_per_month": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Capacity Units Per Month"
           },
           "lead_time_days": {
             "type": "integer",
@@ -4234,7 +4973,8 @@
           },
           "price_band": {
             "type": "string",
-            "title": "Price Band"
+            "title": "Price Band",
+            "default": "Standard"
           }
         },
         "type": "object",
@@ -4246,11 +4986,8 @@
           "state",
           "pincode",
           "phone",
-          "email",
           "languages",
-          "capacity_hint",
-          "lead_time_days",
-          "price_band"
+          "lead_time_days"
         ],
         "title": "VendorRegistration"
       },

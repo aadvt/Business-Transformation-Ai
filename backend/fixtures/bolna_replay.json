@@ -1,56 +1,41 @@
 {
-  "id": "3192d102-56fe-4460-8e5b-6d530bd9a910",
+  "id": "8f4c2a91-77de-4d02-9c3b-52e1b0a4f6d3",
   "agent_id": "00a50e5e-992b-43de-bb1e-45b00995e4a7",
-  "conversation_duration": 30.0,
+  "conversation_duration": 92.0,
   "total_cost": 4.4,
-  "transcript": "assistant: नमस्ते, मैं Grand Hotel की तरफ से बात कर रही हूँ. क्या अभी बात करने का सही समय है?\nuser: yes it is the right time\nuser: It is the right time\nassistant: Thank you for confirming. How can I assist you today?\nuser: well you call me\nassistant: I apologize for any inconvenience caused by our call. How may I assist you today?\nuser: phone call lady\n",
+  "transcript": "assistant: ನಮಸ್ಕಾರ, ನಾನು Sanjeevani ಪರವಾಗಿ ಮಾತನಾಡುತ್ತಿದ್ದೇನೆ. Am I speaking with the supplies team?\nuser: Yes, this is the right number. Tell me.\nassistant: We have an urgent requirement — precision castings, five hundred units. Our regular supplier has a delay. Can you confirm availability this week?\nuser: Five hundred units — yes, we have stock. We can do it.\nassistant: Good. What unit price can you offer for five hundred units?\nuser: For that quantity, one hundred and ninety-five rupees per unit.\nassistant: Our budget is tighter — we have worked at one eighty before. Can you do one eighty-five for a confirmed order today?\nuser: One eighty-five is very low. One hundred and eighty-nine, final. Delivery in two days.\nassistant: One hundred and eighty-nine per unit, delivery within two days — confirmed. Payment on delivery via UPI. Please share your UPI ID.\nuser: vishwakarma.castings@ybl. Send the PO on WhatsApp.\nassistant: Done. You will receive the purchase order shortly. Thank you.\n",
   "extracted_data": {
-    "All Industries": {
-      "Extr": {
-        "objective": null,
-        "confidence": 0.9,
-        "subjective": "No availability or pricing information was discussed in the conversation."
-      },
-      "Future Scheduling": {
-        "objective": null,
-        "confidence": 0.9,
-        "subjective": "",
-        "validation": {"is_valid": false, "expected_type": "timestamp"}
-      },
-      "General": {
-        "Call Summary": {
-          "objective": null,
-          "confidence": 0.9,
-          "subjective": "The conversation involved a representative from Grand Hotel initiating a call with the user, who confirmed it was a suitable time to talk."
-        }
-      }
-    }
+    "availability_confirmed": true,
+    "quantity": 500,
+    "unit_price": 189,
+    "delivery_date": "2026-08-11",
+    "payment_terms_days": 0,
+    "upi_id": "vishwakarma.castings@ybl"
   },
-  "summary": null,
+  "summary": "Vendor confirmed availability of 500 units at Rs 189 per unit with 2-day delivery, payment on delivery via UPI.",
   "error_message": null,
   "status": "completed",
   "user_number": "+916360463302",
   "agent_number": "+918071580188",
   "initiated_at": "2026-08-09T09:03:41.936814",
   "created_at": "2026-08-09T09:03:41.085301+00:00",
-  "updated_at": "2026-08-09T09:04:26.198396+00:00",
+  "updated_at": "2026-08-09T09:05:14.198396+00:00",
   "telephony_data": {
-    "duration": 30.0,
+    "duration": 92.0,
     "to_number": "+916360463302",
     "from_number": "+918071580188",
-    "recording_url": "https://api.bolna.ai/recordings/call/3192d102-56fe-4460-8e5b-6d530bd9a910",
+    "recording_url": "https://api.bolna.ai/recordings/call/8f4c2a91-77de-4d02-9c3b-52e1b0a4f6d3",
     "provider_call_id": "4c4510a2-a659-4bca-a6ea-348c7251d576",
     "call_type": "outbound",
     "hangup_by": "Callee",
-    "hangup_reason": "Call recipient hungup"
+    "hangup_reason": "Call completed"
   },
   "context_details": {
     "recipient_data": {
       "timezone": "Asia/Kolkata",
-      "vendor_name": "Advaith",
-      "hotel_budget": "2,00,000",
-      "item_description": "Drinks for a major setup",
-      "delivery_timeline": "2 to 3 days"
+      "vendor_name": "Vishwakarma Precision Castings",
+      "item_description": "Precision castings, 500 units",
+      "delivery_timeline": "2 days"
     },
     "recipient_phone_number": "+916360463302"
   },

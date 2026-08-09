@@ -48,8 +48,13 @@ function formatPaiseLike(paise: number, sampleDisplay: string): string {
 }
 
 export default function SummaryPanel({ graph, visible }: { graph: ImpactGraph; visible: boolean }) {
-  const displayedPaise = useCountUpPaise(graph.summary.exposure_paise, visible, EXPOSURE_COUNT_UP_MS);
-  const tone = TIER_TONE[graph.summary.tier.toUpperCase()] ?? "text-ink";
+  // This panel sits over the live canvas and also renders straight off an
+  // IMPACT_COMPUTED websocket payload, so it must not be the thing that takes
+  // the whole page down if a field is missing — fall back, don't throw.
+  const summary = graph.summary;
+  const displayedPaise = useCountUpPaise(summary.exposure_paise ?? 0, visible, EXPOSURE_COUNT_UP_MS);
+  const tier = summary.tier ?? "—";
+  const tone = TIER_TONE[tier.toUpperCase()] ?? "text-ink";
 
   return (
     <motion.div
@@ -61,19 +66,19 @@ export default function SummaryPanel({ graph, visible }: { graph: ImpactGraph; v
       <div className="mb-2 flex items-center justify-between">
         <span className="eyebrow">Exposure</span>
         <span className={`rounded-sm bg-surface-3 px-1.5 py-px text-[10px] font-semibold tracking-wider uppercase ${tone}`}>
-          {graph.summary.tier}
+          {tier}
         </span>
       </div>
       <p className={`numeric mb-3 text-[26px] leading-none font-semibold tracking-tight ${tone}`}>
-        {formatPaiseLike(displayedPaise, graph.summary.exposure_display)}
+        {formatPaiseLike(displayedPaise, summary.exposure_display ?? "₹")}
       </p>
       <div className="flex items-center gap-4 border-t border-line pt-2.5 text-[11px] text-ink-muted">
         <div>
-          <p className="numeric text-[15px] font-medium text-ink">{graph.summary.impacted_node_count}</p>
+          <p className="numeric text-[15px] font-medium text-ink">{summary.impacted_node_count ?? 0}</p>
           <p>Impacted nodes</p>
         </div>
         <div>
-          <p className="numeric text-[15px] font-medium text-ink">{graph.summary.at_risk_order_count}</p>
+          <p className="numeric text-[15px] font-medium text-ink">{summary.at_risk_order_count ?? 0}</p>
           <p>At-risk orders</p>
         </div>
       </div>

@@ -195,11 +195,13 @@ computed number.
     { "id": "edge:item:M8-HEX-BOLT->order:3dd81f7b-...", "source": "item:M8-HEX-BOLT", "target": "order:3dd81f7b-...", "state": "IMPACTED" }
   ],
   "summary": {
-    "exposure_total_paise": 1850000000,
-    "exposure_total_display": "₹1,85,00,000",
+    "impacted_node_count": 4,
+    "at_risk_order_count": 1,
+    "exposure_paise": 1850000000,
+    "exposure_display": "₹1,85,00,000",
     "exposure_confidence": 0.87,
     "exposure_calc_id": "c1a2...-uuid",
-    "severity_tier": 1,
+    "tier": "CRITICAL",
     "tier_thresholds_paise": { "tier_1_paise": 100000000, "tier_2_paise": 30000000 }
   },
   "computed_at": "2026-08-09T06:00:00+00:00"
@@ -215,9 +217,14 @@ propagation step) → `3 ORDER` (downstream orders, i.e. open POs carrying a
 increases layer (except the PLANT anchor, which has none). `kind` ∈
 `VENDOR | ITEM | LINE | ORDER | PLANT` (`GraphNodeKind`); `state` ∈
 `HEALTHY | AT_RISK | IMPACTED | SUBSTITUTED` (`GraphNodeState`) — an edge
-always carries the same state as its downstream node. `severity_tier`: `1`
-if `exposure_total_paise >= tier_1_paise`, `2` if `>= tier_2_paise`, else
-`3` — thresholds are echoed back in the response so the UI can show why.
+always carries the same state as its downstream node.
+
+`summary.tier` is `CRITICAL` if `exposure_paise >= tier_1_paise`, `ELEVATED`
+if `>= tier_2_paise`, else `MODERATE` — the thresholds are echoed back in the
+response so the UI can show why. `impacted_node_count` counts nodes in state
+`IMPACTED`; `at_risk_order_count` counts `ORDER` nodes. Both are derived from
+the `nodes` array in the same response, never independently — the panel that
+renders them must be able to point at the graph beside it.
 
 Cached in-process for the life of the server, keyed on the disruption's own
 freshness (its latest per-stage timestamp plus its latest `exposure_calcs`
@@ -678,6 +685,22 @@ extracted data, normalized callee phone matched to `vendors.phone`, then the
 most recent pending call session, then no match. Phone comparison strips
 punctuation, an optional `+91` or `0`, and compares the final ten digits.
 
+### `POST /api/v1/ingest/files` (Demo D6)
+
+Accepts multiple Excel files as multipart uploads and returns immediately with
+an `ingest_id` and queued file records. Processing emits `INGEST_PROGRESS` over
+the live feed. D6 handles messy-but-known-shaped workbooks; it is not a
+general-purpose ETL system. Sheets are classified as `vendor_master`,
+`purchase_log`, `inventory`, `rate_card`, or `unknown`, and header rows may
+occur within the first ten rows. Parsed records use the existing business
+tables and carry `source_file_id` provenance.
+
+### `GET /api/v1/business/questions`, `GET /api/v1/business/profile`, and `POST /api/v1/business/answers`
+
+Questions return tappable options. Answers are stored in the business profile,
+which reports vendor/item counts, categories, payment cycle, peak months,
+plant locations, and top dependencies.
+
 ### `POST /api/v1/negotiations/{negotiation_id}/outcome`
 
 **Request:**
@@ -758,15 +781,28 @@ frontend's phone UI are the honest deliverable — message thread derived from
 existing database state (disruption alerts, approval cards, negotiation
 outcomes, settlement updates), deterministically sorted oldest first.
 
-**Response:** `{ "messages": [ { "id", "at", "direction": "IN"|"OUT", "kind":
-"TEXT"|"ALERT"|"APPROVAL_CARD"|"RESULT", "text", "card"?: { "disruption_id",
-"approval_id", "headline", "exposure_display", "plan_summary": ["action1",
-"action2"], "actions": ["APPROVE","MODIFY"] } } ] }`
+**Response** (flat items, the exact shape the `/phone` frontend renders):
 
-The `card` field is only present for `kind: "APPROVAL_CARD"` messages. The
-thread is deterministic — the same DB state always produces the same sequence.
-This is the communication layer as far as the demo goes: outbound messages are
-DB state queries, not Twilio/WhatsApp-Business-API calls.
+```json
+{ "items": [ {
+    "id": "card-<approval_id>",              // deterministic per source row
+    "kind": "TEXT" | "APPROVAL_CARD" | "SYSTEM",
+    "from": "AGENT" | "OWNER",
+    "text": "…",                              // null for APPROVAL_CARD
+    "at": "ISO-8601",
+    // APPROVAL_CARD only:
+    "approval_id": "…", "disruption_id": "…", "headline": "…",
+    "exposure_display": "₹6,66,500",          // latest exposure_calcs row
+    "plan_summary": ["1,305 units from …", "…"],  // latest remediation plan
+    "status": "PENDING" | "APPROVED" | "REJECTED" | "OPTIONS_REQUESTED"
+} ] }
+```
+
+Without `disruption_id` the thread covers every disruption past DETECTED
+(newest few), plus recent settlement batches as SYSTEM lines. Message ids are
+deterministic (derived from row ids) so the frontend's seen-set dedupe works
+across refetches. This is the communication layer as far as the demo goes:
+outbound messages are DB state queries, not Twilio/WhatsApp-Business-API calls.
 
 ---
 
@@ -815,38 +851,41 @@ seconds so there's always something to build against.
 | `INGEST_PROGRESS` | A document ingestion job's status changes | see below |
 | `BRIEFING_READY` | A pre-call vendor briefing finishes generating | see below |
 
-**Demo phase D0 note:** the 8 event types above were documented ahead of any
-emitting code so the frontend could build against their shape in parallel.
-**Update (D1): `IMPACT_COMPUTED` is now live** — its payload is the full
-`ImpactGraph` object (same shape as `GET /disruptions/{id}/impact`'s
-response), not the smaller placeholder shown in D0's original note. The
-other 7 are still unemitted; see `CLAUDE.md`'s "Demo phases" section for
-which phase owns which. Sample payloads:
+**Live since D5b: the four `CALL_*` events.** They are emitted by the Bolna
+post-call webhook pipeline (`app/routers/webhooks.py`), not during the call —
+Bolna reports back only after the call ends, and the backend then *replays*
+the completed call as a timed reveal (~350ms per transcript turn, ~450ms per
+field; constants at the top of `webhooks.py`). Every `CALL_TRANSCRIPT` event
+carries `phase: "POST_CALL_REVEAL"` — nothing in this API pretends to be a
+live transcript stream. `IMPACT_COMPUTED` (D1), `PLAN_PROPOSED` (D3), and
+`AGENT_SHEET_SYNCED` (D5a) are also live. Sample payloads:
 
 ```json
 // IMPACT_COMPUTED — the full ImpactGraph, see GET /disruptions/{id}/impact above
 { "disruption_id": "...", "nodes": [ /* ... */ ], "edges": [ /* ... */ ], "summary": { /* ... */ }, "computed_at": "..." }
 
 // PLAN_PROPOSED
-{
-  "plan_id": "b1e2...-uuid",
-  "changes": [
-    { "kind": "SWITCH_VENDOR", "description": "Move remaining M8 bolt volume to Kohinoor Precision" },
-    { "kind": "EXPEDITE_FREIGHT", "description": "Air-freight the in-transit balance" }
-  ]
-}
+{ "plan_id": "b1e2...-uuid", "disruption_id": "..." }
 
-// CALL_STARTED
-{ "call_id": "c7a1...-uuid", "vendor_id": "4c34118b-...", "status": "DIALING" }
+// CALL_STARTED — fired by POST /calls/start; briefing_snapshot is the frozen
+// agent-sheet row, guardrails are in paise (for math, not speech)
+{ "call_id": "c7a1...-uuid", "vendor_id": "...", "vendor_name": "Vishwakarma Precision Castings",
+  "status": "DIALING", "language": "kn", "phone": "+91 ••••• •3302",
+  "briefing_snapshot": { "briefing": "...", "target_unit_price": "₹158", "max_unit_price": "₹196", "...": "..." },
+  "guardrails": { "max_unit_price_paise": 19697, "max_unit_price_display": "₹196", "max_lead_time_days": 9 },
+  "source": "LIVE_BOLNA" }
 
-// CALL_TRANSCRIPT
-{ "call_id": "c7a1...-uuid", "speaker": "AGENT", "text": "Hi, calling about PO-SB-004's delivery delay..." }
+// CALL_TRANSCRIPT — one per turn, ~350ms apart, after the webhook lands
+{ "call_id": "c7a1...-uuid", "phase": "POST_CALL_REVEAL", "seq": 3, "speaker": "ASSISTANT", "text": "...", "at_offset_ms": null }
 
-// CALL_FIELD_EXTRACTED
-{ "call_id": "c7a1...-uuid", "field": "final_unit_price_paise", "value": 1450 }
+// CALL_FIELD_EXTRACTED — one per validated field
+{ "call_id": "c7a1...-uuid", "field": "unit_price", "value": 18900, "valid": true, "exceeds_guardrail": false }
 
-// CALL_ENDED
-{ "call_id": "c7a1...-uuid", "status": "CONFIRMED", "duration_seconds": 184 }
+// CALL_ENDED — outcome + Guardian + stage + recomputed exposure
+{ "call_id": "c7a1...-uuid", "status": "ENDED", "outcome": "CONFIRMED",
+  "guardian": { "status": "OK", "passed": true, "is_real_guardian": false, "label": "policy check passed" },
+  "new_stage": "NEGOTIATED", "exposure_after": { "total_paise": 0, "total_display": "₹0" },
+  "duration_seconds": 92 }
 
 // INGEST_PROGRESS
 { "ingest_id": "d92f...-uuid", "status": "PARSING", "progress_pct": 40 }

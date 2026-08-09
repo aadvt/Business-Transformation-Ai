@@ -650,6 +650,136 @@ here as it's completed, same style as the phase notes above.
   4. Log call completion with correlation outcome
 - No LLM involved; deterministic matching ensures replay consistency.
 
+### D5b (revised): full call flow, reveal choreography, write-back — integration pass
+
+- **`POST /calls/start` broadcasts `CALL_STARTED`** carrying the frozen
+  briefing snapshot + guardrails **in paise** (from `get_vendor_context`, not
+  the sheet's rupee strings — the sheet speaks, the guardrails compute).
+  `mode=REPLAY` schedules the fixture through the same ingest path after
+  `REPLAY_WEBHOOK_DELAY_S` so rehearsal is identical to live.
+- **Webhook correlation ladder gained rung 0**: newest `DIALING` session with
+  no `webhook_raw` (the session `/calls/start` just created — a live webhook
+  can never match on `bolna_execution_id` because the started session doesn't
+  have one yet). Falls back to `resolve_vendor()`'s ladder for orphans.
+- **The reveal** (`_reveal` in `app/routers/webhooks.py`): after the raw body
+  is stored and 200 returned, a background task parses, validates, writes
+  back, then emits `CALL_TRANSCRIPT` per turn (~350ms apart, each with
+  `phase: "POST_CALL_REVEAL"`), `CALL_FIELD_EXTRACTED` per field, and
+  `CALL_ENDED` with outcome + Guardian label + new stage + recomputed
+  exposure. Spacing constants at the top of the module, tune in rehearsal.
+- **Write-back is fail-soft** and reuses the existing machinery: Negotiation
+  row (AGREED / NEEDS_REVIEW on guardrail breach), stage advance through
+  `transition()` only (APPROVED→NEGOTIATING→NEGOTIATED; a breach leaves the
+  stage put — that's the governance story), and exposure recomputed via
+  `compute_exposure` fed the plan-covered residual quantities (mirrors the
+  planner's after-exposure inputs — same formula, honest inputs).
+- Guardian groundedness runs on the assembled outcome vs the transcript;
+  the broadcast label is derived from `is_real_guardian` and never says
+  "Granite Guardian" for the surrogate (CLAUDE.md rule upheld in the payload
+  itself, so no UI can get it wrong).
+- `fixtures/bolna_replay.json` is shaped exactly like the real captured
+  Execution payload (preserved at `fixtures/bolna_real_capture.json`) with a
+  demo-quality negotiation; `_load_fixture()` refreshes `delivery_date` to
+  now+2d so the fixture never rots into "date in the past". The agreed price
+  (₹189) deliberately sits under the seeded winning candidate's ₹196
+  guardrail so the replay advances the stage; the `guardrail_breach` story is
+  one edit away (any price above the guardrail routes to NEEDS_REVIEW).
+- **Sourcing pool fix**: `verified_only=True` was a chicken-and-egg dead end
+  on a fresh DB (nothing has Verification rows until sourcing itself writes
+  them) — an empty verified pool now falls back to the full same-category
+  pool; the top-N still get verified via `verify_vendor` as before.
+- **Planner**: per-vendor concentration cap (`MAX_VENDOR_SHARE=0.45`, relaxed
+  to an even split when candidates are few) applied identically in CP-SAT and
+  the greedy fallback, so a big order genuinely splits across 3 vendors;
+  after-exposure computed from plan-uncovered residual quantities instead of
+  the old placeholder (which always equalled before-exposure); changes now
+  store `vendor_name`/`item_name`. ortools is installed in `.venv`.
+- **`GET /disruptions/{id}/plan` returns the diff shape** the frontend's
+  PlanDiffPanel renders (`PlanDiffResponse`: current incumbent PO lines vs
+  proposed rows, solver name mapped to `OR_TOOLS_CP_SAT`/`GREEDY_FALLBACK`).
+- **`GET /phone/messages` returns `{items: [...]}`** in the frontend's flat
+  shape (kind TEXT/APPROVAL_CARD/SYSTEM, from AGENT/OWNER, real exposure from
+  `exposure_calcs`, plan summary from the latest remediation plan,
+  deterministic ids). No `disruption_id` → thread across all progressed
+  disruptions.
+- `/demo/reset` clears the D5+ tables too (`call_sessions`,
+  `remediation_plans`, `agent_sheet_syncs`) — they FK to
+  `disruption_events` and Postgres enforces it.
+- `audit_log.detail["vendor_id"]` comparisons must use `.as_string()` (`->>`)
+  — Postgres cannot compare `json` to `varchar` (`->` broke
+  `GET /disruptions/{id}` after D2's score-components lookup).
+- Candidates now carry display enrichment (`distance_km`,
+  `reliability_score_0_100`, `languages`, `price_delta_pct` vs incumbent PO).
+
+### D5c: integration pass 2 — the dialog path, the impact summary, and N+1
+
+Found by driving the actual UI through a full pipeline run (headless Chromium
+against the real backend) rather than curling endpoints. Three classes of bug
+that only appear when a human uses the app:
+
+- **`POST /disruptions/simulate`'s free-form path set `affected_po_ids=[]`.**
+  This is the path the Simulate Crisis *dialog* uses — i.e. every demo run that
+  isn't the hardcoded `scenario` string. With no affected POs, Diagnosis
+  computed ₹0 exposure and `build_plan` returned `None` (it has nothing to
+  re-source), so the dialog-driven demo produced no exposure, no plan and no
+  payment split — while the impact graph beside it still showed "₹1.3Cr at
+  risk" on an order node. It now attaches the vendor's undelivered POs,
+  deliberately the same set `GET /simulate/targets` estimates from, so the
+  number the modal previews is the number the disruption reports.
+- **`ImpactSummary` didn't match what the frontend renders.** It exposed
+  `exposure_total_paise` / `severity_tier: int`; `SummaryPanel` reads
+  `exposure_paise` / `tier: str` / `impacted_node_count` / `at_risk_order_count`
+  (the last two didn't exist at all — `pipeline.py` computed them privately for
+  its audit row). Renamed and added, tier is now `CRITICAL|ELEVATED|MODERATE`,
+  and the counts are derived from the same `nodes` array in the same response.
+  This crashed `/command` mid-pipeline (`tier.toUpperCase()` of `undefined`) —
+  the WS `IMPACT_COMPUTED` payload is this same object, so fixing it frontend-
+  side would have left the websocket path broken.
+- **N+1 queries everywhere, and Neon's round-trip is ~270ms** — so every
+  redundant query is a quarter-second of visible latency. `/simulate/targets`
+  ran one PO query per vendor: **10.7s** before the trigger modal was usable.
+  Batched (two queries) → 1.5s. Same fix applied to `list_disruptions`
+  (per-row vendor + exposure), `list_vendors` (per-row dues SUM),
+  `_candidates_schema` (per-candidate vendor/verification/audit/org/PO),
+  `/public/vendors` (per-vendor `verify_vendor` cache lookup — see
+  `load_verification_cache`), `/phone/messages` (per-disruption everything,
+  and it polls every 5s), and settlement batch lines. Endpoints went 8.5s→1.5s,
+  7.8s→1.5s, 5.3s→1.8s. **Before optimizing further, measure**: `SELECT 1`
+  against Neon costs 270ms, so ~1.2s for a 4-query endpoint is the floor, not
+  a bug. Keep new list endpoints to a constant query count — never one per row.
+- **The public directory could never show a verified vendor.** `overall_status`
+  is `_worse(gstin, udyam)`, and Udyam is `UNAVAILABLE` without a live provider
+  (which is the demo default), so `overall` is never `VERIFIED` — yet
+  `/directory` shipped with "Verified only" checked by default, rendering an
+  empty page. Fixed *without* touching the verification semantics, which are
+  the honest ones: the filter now defaults off, and `VerificationBadge` grew a
+  third state so a vendor whose GSTIN checksum passed reads "GSTIN verified"
+  rather than a flat "Unverified" that denies a check that did pass.
+  `GET /public/vendors?verified=true` also no longer pre-filters on existing
+  Verification rows (same chicken-and-egg as the sourcing pool: a freshly
+  registered vendor has no row yet, so it could never pass the filter) — it
+  verifies the candidate set first, then filters on the computed result.
+
+**Testing note:** `tests/test_contract.py` runs against the shared seeded DB
+and is not idempotent across runs — `test_settlement_confirm` confirms a batch,
+so a second run sees no PENDING settlement items and `test_vendor_dues` fails
+on `assert 0 > 0`. Likewise any manual demo run leaves extra disruptions and
+breaks `test_list_disruptions`'s `total == 3`. Run `python -m app.seed --reset`
+(server stopped) before trusting a full-suite result.
+
+### D6: messy-but-known-shaped Excel ingest
+
+- `POST /api/v1/ingest/files` accepts several Excel files and processes them in
+  a background task. `INGEST_PROGRESS` is emitted for parsing, sheet count,
+  rows, entities, and dedupe results. This is deliberately a demo parser for
+  known workbook shapes, not a general-purpose ETL system.
+- `app/services/ingest/parser.py` uses deterministic header-row detection,
+  sheet classification, vendor normalization, GSTIN override, and inspectable
+  fuzzy merge groups. Openpyxl is the fallback parser.
+- Existing business tables carry nullable `source_file_id` provenance.
+  `BusinessProfile` stores the assembled profile and question answers through
+  `/api/v1/business/*`.
+
 ## Adding a new DB-backed endpoint
 
 1. Table already exists? Add/extend the ORM model in `app/db/models.py`

@@ -196,7 +196,28 @@ async def _simulate_custom(vendor_id: str, kind: ScenarioKind, effective_date: s
             headline = _headline_for_kind(kind, vendor.name)
             disruption_id = str(uuid.uuid4())
             now = utc_now()
-            evidence = {"kind": kind.value, "effective_date": effective_date, "triggered_via": "demo_simulate"}
+
+            # The vendor's undelivered POs are what this disruption actually
+            # puts at risk. Without them the disruption carries no affected
+            # POs, so Diagnosis computes ₹0 exposure and the planner returns
+            # None (it has nothing to re-source) — the whole downstream demo
+            # collapses to zeroes. This is deliberately the same PO set
+            # GET /simulate/targets estimates from, so the exposure the modal
+            # previewed is the exposure the disruption reports.
+            open_po_ids = list(
+                session.execute(
+                    select(PurchaseOrder.id).where(
+                        PurchaseOrder.vendor_id == vendor.id, PurchaseOrder.delivered_at.is_(None)
+                    )
+                ).scalars().all()
+            )
+
+            evidence = {
+                "kind": kind.value,
+                "effective_date": effective_date,
+                "triggered_via": "demo_simulate",
+                "open_po_count": len(open_po_ids),
+            }
             session.add(
                 DisruptionEvent(
                     id=disruption_id,
@@ -209,7 +230,7 @@ async def _simulate_custom(vendor_id: str, kind: ScenarioKind, effective_date: s
                     signal_payload=evidence,
                     detector_name=MANUAL_TRIGGER_DETECTOR,
                     detector_source="RULE_BASED",
-                    affected_po_ids=[],
+                    affected_po_ids=open_po_ids,
                 )
             )
             session.flush()
@@ -241,13 +262,23 @@ async def simulate_targets() -> SimulateTargetsResponse:
     def _build() -> list[SimulateTarget]:
         with SessionLocal() as session:
             vendors = session.execute(select(VendorRow).where(VendorRow.org_id == DEFAULT_ORG_ID)).scalars().all()
+
+            # Two queries total, not one per vendor. This endpoint is the very
+            # first thing the demo operator hits (it populates the trigger
+            # modal), and a per-vendor query was ~24 Neon round-trips — about
+            # 11 seconds of loading skeleton before the dialog was usable.
+            pos_by_vendor: dict[str, list[PurchaseOrder]] = {}
+            all_open_pos = session.execute(
+                select(PurchaseOrder).where(
+                    PurchaseOrder.org_id == DEFAULT_ORG_ID, PurchaseOrder.delivered_at.is_(None)
+                )
+            ).scalars().all()
+            for po in all_open_pos:
+                pos_by_vendor.setdefault(po.vendor_id, []).append(po)
+
             targets: list[SimulateTarget] = []
             for vendor in vendors:
-                open_pos = session.execute(
-                    select(PurchaseOrder).where(
-                        PurchaseOrder.vendor_id == vendor.id, PurchaseOrder.delivered_at.is_(None)
-                    )
-                ).scalars().all()
+                open_pos = pos_by_vendor.get(vendor.id, [])
                 if not open_pos:
                     continue
 

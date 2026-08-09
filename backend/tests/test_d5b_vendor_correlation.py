@@ -102,8 +102,9 @@ class TestResolveVendorCorrelationLadder:
         assert vendor is not None
         vendor_phone = vendor.phone
 
-        # Bolna format: +91 prefix
-        bolna_format = f"+91{vendor_phone[-10:]}"
+        # Bolna format: +91 prefix on the normalized 10 digits (the raw phone
+        # string may contain spaces/dashes, so slicing it directly is wrong)
+        bolna_format = f"+91{_norm_phone(vendor_phone)}"
         resolved, method = resolve_vendor(session, {}, phone=bolna_format)
         assert resolved is not None
         assert resolved.id == vendor.id
@@ -171,6 +172,17 @@ class TestResolveVendorCorrelationLadder:
         assert method == "phone"
 
 
+def _call_target_with_candidate(client):
+    """/calls/start requires the vendor to be a sourcing candidate for the
+    disruption — find a seeded disruption that has one."""
+    r = client.get("/api/v1/disruptions")
+    for summary in r.json()["items"]:
+        detail = client.get(f"/api/v1/disruptions/{summary['id']}").json()
+        if detail.get("candidates"):
+            return detail["id"], detail["candidates"][0]["vendor_id"]
+    return None, None
+
+
 class TestWebhookCallSessionCreation:
     """Webhook integration creates CallSession with correlation_method."""
 
@@ -186,24 +198,16 @@ class TestWebhookCallSessionCreation:
 
     def test_calls_start_endpoint(self, client):
         """POST /api/v1/calls/start creates a CallSession."""
-        # Get a seeded disruption with vendor
-        r = client.get("/api/v1/disruptions")
-        assert r.status_code == 200
-        disruptions = r.json()["items"]
-        if not disruptions:
-            pytest.skip("No disruptions seeded")
+        disruption_id, vendor_id = _call_target_with_candidate(client)
+        if disruption_id is None:
+            pytest.skip("No disruption with sourcing candidates seeded")
 
-        disruption = disruptions[0]
-        disruption_id = disruption["id"]
-        vendor_id = disruption["vendor_id"]
-
-        # Start a call
         r = client.post(
             "/api/v1/calls/start",
             json={
                 "disruption_id": disruption_id,
                 "vendor_id": vendor_id,
-                "mode": "REPLAY",
+                "mode": "LIVE",
             },
         )
         assert r.status_code == 200
@@ -215,22 +219,16 @@ class TestWebhookCallSessionCreation:
 
     def test_get_call_session(self, client):
         """GET /api/v1/calls/{call_id} retrieves CallSession."""
-        # First create a call
-        r = client.get("/api/v1/disruptions")
-        disruptions = r.json()["items"]
-        if not disruptions:
-            pytest.skip("No disruptions seeded")
-
-        disruption = disruptions[0]
-        disruption_id = disruption["id"]
-        vendor_id = disruption["vendor_id"]
+        disruption_id, vendor_id = _call_target_with_candidate(client)
+        if disruption_id is None:
+            pytest.skip("No disruption with sourcing candidates seeded")
 
         r = client.post(
             "/api/v1/calls/start",
             json={
                 "disruption_id": disruption_id,
                 "vendor_id": vendor_id,
-                "mode": "REPLAY",
+                "mode": "LIVE",
             },
         )
         assert r.status_code == 200
@@ -245,22 +243,16 @@ class TestWebhookCallSessionCreation:
 
     def test_replay_call_processes_webhook(self, client):
         """POST /api/v1/calls/{call_id}/replay processes Bolna transcript."""
-        # Create a call first
-        r = client.get("/api/v1/disruptions")
-        disruptions = r.json()["items"]
-        if not disruptions:
-            pytest.skip("No disruptions seeded")
-
-        disruption = disruptions[0]
-        disruption_id = disruption["id"]
-        vendor_id = disruption["vendor_id"]
+        disruption_id, vendor_id = _call_target_with_candidate(client)
+        if disruption_id is None:
+            pytest.skip("No disruption with sourcing candidates seeded")
 
         r = client.post(
             "/api/v1/calls/start",
             json={
                 "disruption_id": disruption_id,
                 "vendor_id": vendor_id,
-                "mode": "REPLAY",
+                "mode": "LIVE",
             },
         )
         call_id = r.json()["id"]
@@ -270,10 +262,8 @@ class TestWebhookCallSessionCreation:
         assert r.status_code == 200
         body = r.json()
         assert body["status"] == "ENDED"
-        # Transcript should be populated
-        assert len(body.get("transcript", [])) > 0 or body["transcript"] == []
-        # Extracted should be populated from replay fixture
-        assert "extracted" in body
+        assert len(body["transcript"]) > 0
+        assert body["extracted"].get("unit_price") is not None
 
 
 class TestCorrelationMethodTracking:

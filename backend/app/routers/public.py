@@ -15,6 +15,7 @@ from app.constants import DEFAULT_ORG_ID
 from app.db.session import get_session
 from app.db.models import Vendor as VendorRow
 from app.repositories import vendors as vendor_repo
+from app.schemas.enums import VerificationStatus
 from app.schemas.public_vendors import (
     PublicVendor,
     PublicVendorList,
@@ -25,7 +26,7 @@ from app.schemas.public_vendors import (
 )
 from app.services.audit import append_audit
 from app.services.gstin import validate_gstin
-from app.services.verification import verify_vendor
+from app.services.verification import load_verification_cache, verify_vendor
 from app.schemas.money import utc_now
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
@@ -39,10 +40,13 @@ def _mask_gstin(gstin: str) -> str:
 
 
 def _vendor_to_public(
-    session: Session, vendor: VendorRow, distance_km: float | None = None
+    session: Session,
+    vendor: VendorRow,
+    distance_km: float | None = None,
+    verification_cache: dict | None = None,
 ) -> PublicVendor:
     """Convert ORM Vendor to PublicVendor response with verification details."""
-    verification_result = verify_vendor(session, vendor)
+    verification_result = verify_vendor(session, vendor, cache=verification_cache)
 
     # Build verification detail list showing what was checked
     details = [
@@ -104,13 +108,19 @@ def get_public_vendors(
     session: Session = Depends(get_session),
 ) -> PublicVendorList:
     """List vendors from the public directory."""
-    vendors = vendor_repo.search_vendors(
-        session,
-        category=category,
-        verified_only=verified,
-        limit=limit,
-    )
-    items = [_vendor_to_public(session, v) for v in vendors]
+    # Deliberately NOT passing verified_only to the query: that filters on
+    # Verification rows, which only exist once a vendor has been verified at
+    # least once — so a freshly registered (or freshly seeded) vendor could
+    # never appear under the filter, no matter how clean its GSTIN. Verify the
+    # candidate set first (GSTIN is an offline checksum, so this is cheap),
+    # then filter on the result.
+    vendors = vendor_repo.search_vendors(session, category=category, limit=limit)
+    cache = load_verification_cache(session, [v.id for v in vendors])
+    items = [_vendor_to_public(session, v, verification_cache=cache) for v in vendors]
+    if verified:
+        items = [i for i in items if i.verification.overall_status == VerificationStatus.VERIFIED.value]
+    # verify_vendor writes a Verification row for any vendor that wasn't cached.
+    session.commit()
     return PublicVendorList(items=items, total=len(items))
 
 
@@ -166,6 +176,12 @@ def register_vendor(
             detail="A vendor with this name and city already exists",
         )
 
+    # Derive the qualitative capacity hint from the form's numeric capacity.
+    capacity_hint = payload.capacity_hint
+    if payload.capacity_units_per_month is not None:
+        units = payload.capacity_units_per_month
+        capacity_hint = "Very High" if units >= 40000 else "High" if units >= 15000 else "Medium" if units >= 5000 else "Low"
+
     # Create vendor
     now = utc_now()
     vendor = VendorRow(
@@ -189,7 +205,7 @@ def register_vendor(
         avg_lead_time_days=payload.lead_time_days,
         is_backup_pool=True,  # New vendors start in backup pool
         payment_terms_days=30,
-        capacity_hint=payload.capacity_hint,
+        capacity_hint=capacity_hint,
         price_band=payload.price_band,
         created_at=now,
         updated_at=now,

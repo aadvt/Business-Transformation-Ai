@@ -143,7 +143,10 @@ class SourcingAgent(Agent):
 
         org = session.get(Organisation, ctx.org_id) or session.get(Organisation, DEFAULT_ORG_ID)
 
-        # Use shared vendor search from public directory, with verification required
+        # Prefer already-verified vendors, but on a fresh database nothing has
+        # a Verification row yet — sourcing itself verifies its top candidates
+        # below (verify_vendor writes the rows), so an empty verified pool
+        # falls back to the full same-category pool rather than dead-ending.
         pool = vendor_repo.search_vendors(
             session,
             category=failed_vendor.category,
@@ -151,6 +154,14 @@ class SourcingAgent(Agent):
             exclude_vendor_id=failed_vendor.id,
             limit=100,
         )
+        if not pool:
+            pool = vendor_repo.search_vendors(
+                session,
+                category=failed_vendor.category,
+                verified_only=False,
+                exclude_vendor_id=failed_vendor.id,
+                limit=100,
+            )
 
         if not pool:
             return AgentResult(

@@ -36,6 +36,7 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
 function CandidateCard({ candidate }: { candidate: SourcingCandidate }) {
   const [expanded, setExpanded] = useState(false);
   const verified = candidate.verification.status === "VERIFIED";
+  const gstinVerified = candidate.verification.gstin_status === "VERIFIED";
   const priceDelta = candidate.price_delta_pct ?? 0;
   const [briefingOpen, setBriefingOpen] = useState(false);
   const [context, setContext] = useState<Awaited<ReturnType<typeof api.getVendorContext>> | null>(null);
@@ -53,7 +54,7 @@ function CandidateCard({ candidate }: { candidate: SourcingCandidate }) {
     >
       <div className="mb-1.5 flex items-start justify-between gap-2">
         <p className="text-[13px] font-medium text-ink">{candidate.name}</p>
-        <VerificationBadge verified={verified} size="sm" />
+        <VerificationBadge verified={verified} gstinVerified={gstinVerified} size="sm" />
       </div>
 
       <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-muted">

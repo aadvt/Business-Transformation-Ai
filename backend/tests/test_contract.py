@@ -74,7 +74,11 @@ def test_disruption_impact(client):
         assert layer_by_id[edge["source"]] < layer_by_id[edge["target"]]
     # summary must equal D1's actual latest exposure_calcs row, not a re-derived number
     disruption = client.get(f"/api/v1/disruptions/{DISRUPTION_ID}").json()
-    assert body["summary"]["exposure_total_paise"] == disruption["exposure"]["total_paise"]
+    assert body["summary"]["exposure_paise"] == disruption["exposure"]["total_paise"]
+    # the fields the /command SummaryPanel renders
+    assert body["summary"]["tier"] in ("CRITICAL", "ELEVATED", "MODERATE")
+    assert body["summary"]["impacted_node_count"] == sum(1 for n in body["nodes"] if n["state"] == "IMPACTED")
+    assert body["summary"]["at_risk_order_count"] == sum(1 for n in body["nodes"] if n["kind"] == "ORDER")
 
     r = client.get("/api/v1/disruptions/does-not-exist/impact")
     assert r.status_code == 404
@@ -349,30 +353,29 @@ def test_demo_reset(client):
 
 
 def test_phone_messages(client):
-    """D4: Message thread from DB state (mock WhatsApp UI, no actual integration)."""
+    """D4: Message thread from DB state (mock WhatsApp UI, no actual
+    integration), in the flat items shape the /phone frontend renders."""
     r = client.get(f"/api/v1/phone/messages?disruption_id={DISRUPTION_ID}")
     assert r.status_code == 200
     body = r.json()
-    assert "messages" in body
-    messages = body["messages"]
-    assert len(messages) > 0
+    assert "items" in body
+    items = body["items"]
+    assert len(items) > 0
     # Messages should be sorted oldest first
-    timestamps = [m["at"] for m in messages]
+    timestamps = [m["at"] for m in items]
     assert timestamps == sorted(timestamps)
-    # Every message has required fields
-    for msg in messages:
+    for msg in items:
         assert "id" in msg
         assert "at" in msg
-        assert "direction" in msg
-        assert msg["direction"] in ("IN", "OUT")
-        assert "kind" in msg
-        assert msg["kind"] in ("TEXT", "ALERT", "APPROVAL_CARD", "RESULT")
-        assert "text" in msg
+        assert msg["from"] in ("AGENT", "OWNER")
+        assert msg["kind"] in ("TEXT", "APPROVAL_CARD", "SYSTEM")
         if msg["kind"] == "APPROVAL_CARD":
-            assert "card" in msg
-            assert "disruption_id" in msg["card"]
-            assert "approval_id" in msg["card"]
-            assert "actions" in msg["card"]
+            assert "disruption_id" in msg
+            assert "approval_id" in msg
+            assert "headline" in msg
+            assert "exposure_display" in msg
+            assert isinstance(msg.get("plan_summary"), list)
+            assert "status" in msg
 
 
 # --- Demo phase D5a/D5b: Agent sheet context and vendor correlation --------
@@ -405,24 +408,30 @@ def test_agent_vendor_sheet_csv(client):
     assert "vendor_id" in csv_content
 
 
+def _call_target_with_candidate(client):
+    """/calls/start requires the vendor to be a sourcing candidate for the
+    disruption — find a seeded disruption that has one."""
+    r = client.get("/api/v1/disruptions")
+    for summary in r.json()["items"]:
+        detail = client.get(f"/api/v1/disruptions/{summary['id']}").json()
+        if detail.get("candidates"):
+            return detail["id"], detail["candidates"][0]["vendor_id"]
+    return None, None
+
+
 def test_call_session_lifecycle(client):
     """D5a/D5b: Call session creation and retrieval."""
-    r = client.get("/api/v1/disruptions")
-    disruptions = r.json()["items"]
-    if not disruptions:
-        pytest.skip("No disruptions seeded")
+    disruption_id, vendor_id = _call_target_with_candidate(client)
+    if disruption_id is None:
+        pytest.skip("No disruption with sourcing candidates seeded")
 
-    disruption = disruptions[0]
-    disruption_id = disruption["id"]
-    vendor_id = disruption["vendor_id"]
-
-    # Start a call
+    # Start a call (LIVE mode so no background replay task fires in tests)
     r = client.post(
         "/api/v1/calls/start",
         json={
             "disruption_id": disruption_id,
             "vendor_id": vendor_id,
-            "mode": "REPLAY",
+            "mode": "LIVE",
         },
     )
     assert r.status_code == 200
@@ -430,6 +439,9 @@ def test_call_session_lifecycle(client):
     assert call["status"] == "DIALING"
     assert call["vendor_id"] == vendor_id
     assert call["disruption_id"] == disruption_id
+    # The frozen briefing + paise guardrails are what the call view renders.
+    assert call["briefing_snapshot"].get("briefing")
+    assert call["guardrails"].get("max_unit_price_paise")
     call_id = call["id"]
 
     # Retrieve the call
@@ -441,35 +453,30 @@ def test_call_session_lifecycle(client):
 
 
 def test_call_replay_with_bolna_webhook(client):
-    """D5b: Replay call processes Bolna webhook payload and extracts data."""
-    r = client.get("/api/v1/disruptions")
-    disruptions = r.json()["items"]
-    if not disruptions:
-        pytest.skip("No disruptions seeded")
+    """D5b: Replay call processes the captured Bolna payload end to end."""
+    disruption_id, vendor_id = _call_target_with_candidate(client)
+    if disruption_id is None:
+        pytest.skip("No disruption with sourcing candidates seeded")
 
-    disruption = disruptions[0]
-    disruption_id = disruption["id"]
-    vendor_id = disruption["vendor_id"]
-
-    # Start a call in REPLAY mode
     r = client.post(
         "/api/v1/calls/start",
         json={
             "disruption_id": disruption_id,
             "vendor_id": vendor_id,
-            "mode": "REPLAY",
+            "mode": "LIVE",
         },
     )
     assert r.status_code == 200
     call_id = r.json()["id"]
 
-    # Replay with fixture (processes webhook)
+    # Replay with fixture (processes webhook through the same pipeline)
     r = client.post(f"/api/v1/calls/{call_id}/replay")
     assert r.status_code == 200
     call = r.json()
     assert call["status"] == "ENDED"
     assert call["outcome_status"] == "completed"
-    # Extracted data should be present
-    assert isinstance(call.get("extracted", {}), dict)
-    # Transcript should be populated
-    assert isinstance(call.get("transcript", []), list)
+    assert call["source"] == "REPLAY"
+    assert len(call["transcript"]) > 0
+    assert call["extracted"].get("unit_price") is not None
+    fields = call["validation"]["fields"]
+    assert fields["unit_price"]["valid"] is True

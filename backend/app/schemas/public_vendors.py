@@ -52,11 +52,14 @@ class VendorRegistration(BaseModel):
     state: str
     pincode: str
     phone: str
-    email: str
+    email: str = ""
     languages: list[str]
-    capacity_hint: str
+    # The public form sends a numeric capacity; capacity_hint is derived from
+    # it server-side when not given explicitly.
+    capacity_hint: str = "Medium"
+    capacity_units_per_month: int | None = None
     lead_time_days: int
-    price_band: str
+    price_band: str = "Standard"
 
 
 class RegistrationResponse(BaseModel):

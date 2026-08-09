@@ -59,12 +59,12 @@ def _latest_exposure(session: Session, disruption_id: str) -> _ExposureRow | Non
     return _ExposureRow(id=row.id, total_paise=row.total_paise, confidence=row.confidence)
 
 
-def _severity_tier(total_paise: int) -> int:
+def _severity_tier(total_paise: int) -> str:
     if total_paise >= settings.impact_tier1_exposure_paise:
-        return 1
+        return "CRITICAL"
     if total_paise >= settings.impact_tier2_exposure_paise:
-        return 2
-    return 3
+        return "ELEVATED"
+    return "MODERATE"
 
 
 def disruption_version_key(session: Session, disruption: DisruptionEvent) -> str:
@@ -205,11 +205,13 @@ def build_impact_graph(session: Session, disruption: DisruptionEvent) -> ImpactG
     total_paise = exposure.total_paise if exposure else 0
     confidence = exposure.confidence if exposure else 0.0
     summary = ImpactSummary(
-        exposure_total_paise=total_paise,
-        exposure_total_display=format_inr(total_paise),
+        impacted_node_count=sum(1 for n in nodes if n.state == GraphNodeState.IMPACTED),
+        at_risk_order_count=sum(1 for n in nodes if n.kind == GraphNodeKind.ORDER),
+        exposure_paise=total_paise,
+        exposure_display=format_inr(total_paise),
         exposure_confidence=confidence,
         exposure_calc_id=exposure.id if exposure else None,
-        severity_tier=_severity_tier(total_paise),
+        tier=_severity_tier(total_paise),
         tier_thresholds_paise={
             "tier_1_paise": settings.impact_tier1_exposure_paise,
             "tier_2_paise": settings.impact_tier2_exposure_paise,

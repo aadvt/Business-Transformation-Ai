@@ -14,7 +14,7 @@ import { useLiveEvents } from "@/lib/live";
 import { api } from "@/lib/api";
 import { impactGraphFixture, planFixture } from "@/lib/demoFixtures";
 import { candidatesFixture } from "@/lib/directoryFixtures";
-import type { ApprovalDecision, GraphNode, ImpactGraph, Plan, ScenarioKind, SourcingCandidate, WSEvent } from "@/lib/types";
+import type { ApprovalDecision, CallSession, GraphNode, ImpactGraph, Plan, ScenarioKind, SourcingCandidate, WSEvent } from "@/lib/types";
 import SimulateDialog from "@/components/command/SimulateDialog";
 import ImpactGraphCanvas from "@/components/command/ImpactGraphCanvas";
 import NodeDetailDialog from "@/components/command/NodeDetailDialog";
@@ -22,6 +22,7 @@ import CandidateRail from "@/components/command/CandidateRail";
 import GhostEdgeOverlay from "@/components/command/GhostEdgeOverlay";
 import PlanDiffPanel from "@/components/command/PlanDiffPanel";
 import ApprovalStatusCard from "@/components/command/ApprovalStatusCard";
+import CallView from "@/components/command/CallView";
 import {
   FIXTURE_CANDIDATES_DELAY_MS,
   FIXTURE_IMPACT_DELAY_MS,
@@ -57,6 +58,8 @@ export default function CommandPage() {
   const [handledApprovalEventId, setHandledApprovalEventId] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [sheetSyncStatus, setSheetSyncStatus] = useState<"SYNCED" | "UNAVAILABLE" | "PENDING">("PENDING");
+  const [callSession, setCallSession] = useState<CallSession | null>(null);
+  const [callStarting, setCallStarting] = useState(false);
 
   const canvasRootRef = useRef<HTMLDivElement>(null);
 
@@ -210,6 +213,40 @@ export default function CommandPage() {
     api.syncAgentSheet(disruptionId ?? undefined).then((result) => setSheetSyncStatus(result.status)).catch(() => setSheetSyncStatus("UNAVAILABLE"));
   }
 
+  // Refresh recovery for the call: /command?call=<id> restores the call view
+  // mid-flow (CallView itself refetches the session and re-renders whatever
+  // already happened).
+  useEffect(() => {
+    const callParam = new URLSearchParams(window.location.search).get("call");
+    if (callParam && !callSession) {
+      api.getCall(callParam).then((c) => {
+        setCallSession(c);
+        setPhase("resolved");
+        if (c.disruption_id) {
+          setDisruptionId(c.disruption_id);
+          api.getPlan(c.disruption_id).then(setPlan).catch(() => undefined);
+        }
+      }).catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function startCall(mode: "LIVE" | "REPLAY") {
+    const winner = candidates?.[0];
+    if (!winner || !disruptionId || callStarting) return;
+    setCallStarting(true);
+    api
+      .startCall({ disruption_id: disruptionId, vendor_id: winner.vendor_id, mode })
+      .then((c) => {
+        setCallSession(c);
+        const url = new URL(window.location.href);
+        url.searchParams.set("call", c.id);
+        window.history.replaceState(null, "", url.toString());
+      })
+      .catch((err) => toast.error(`Could not start the call: ${err.message}`))
+      .finally(() => setCallStarting(false));
+  }
+
   return (
     <div className="flex h-[76vh] min-h-[560px] flex-col gap-4">
       <PageHeader
@@ -319,7 +356,12 @@ export default function CommandPage() {
                   transition={{ duration: 0.4, ease: "easeOut" }}
                   className="absolute bottom-4 left-4"
                 >
-                  <ApprovalStatusCard decision={approvalDecision} />
+                  <ApprovalStatusCard
+                    decision={approvalDecision}
+                    vendorName={candidates?.[0]?.name}
+                    onCallVendor={candidates && candidates.length > 0 && !callSession ? startCall : undefined}
+                    callStarting={callStarting}
+                  />
                 </motion.div>
               )}
             </AnimatePresence>
@@ -361,6 +403,23 @@ export default function CommandPage() {
           </AnimatePresence>
 
           <GhostEdgeOverlay containerRef={canvasRootRef} hoveredCandidateId={hoveredCandidateId} targetNodeIds={impactedItemNodeIds} />
+
+          {/* D5b: the call takes over the whole canvas as a full-bleed mode —
+              a layout takeover inside /command, never a route change. */}
+          <AnimatePresence>
+            {callSession && (
+              <motion.div
+                key="call-mode"
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.45, ease: "easeOut" }}
+                className="absolute inset-0 z-20 bg-surface"
+              >
+                <CallView callId={callSession.id} initial={callSession} plan={plan} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
 

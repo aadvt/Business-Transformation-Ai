@@ -35,7 +35,7 @@ function VendorCard({ vendor }: { vendor: PublicVendor }) {
           <p className="text-[14px] font-semibold text-slate-900">{vendor.name}</p>
           <p className="text-[12.5px] text-slate-500">{vendor.category}</p>
         </div>
-        <VerificationBadge verified={vendor.verified} />
+        <VerificationBadge verified={vendor.verified} gstinVerified={vendor.gstin_verified} />
       </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12.5px] text-slate-500">
@@ -75,7 +75,11 @@ export default function DirectorySearchPage() {
   const [maxLeadTime, setMaxLeadTime] = useState("");
   const [minCapacity, setMinCapacity] = useState("");
   const [languages, setLanguages] = useState<string[]>([]);
-  const [verifiedOnly, setVerifiedOnly] = useState(true);
+  // Off by default: "verified" means GSTIN *and* Udyam passed, and Udyam
+  // needs a live provider we don't have configured — so defaulting this on
+  // renders an empty directory. Every card still shows its own honest badge
+  // and per-check evidence, so nothing is overclaimed by listing them.
+  const [verifiedOnly, setVerifiedOnly] = useState(false);
 
   const params: PublicVendorSearchParams = {
     category: category || undefined,

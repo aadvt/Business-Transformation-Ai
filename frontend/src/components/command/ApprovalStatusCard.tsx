@@ -2,17 +2,32 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, Clock3 } from "lucide-react";
+import { CheckCircle2, Clock3, PhoneOutgoing } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import type { ApprovalDecision } from "@/lib/types";
 
 type Stage = "PENDING" | "APPROVED" | "NEGOTIATING";
 const ORDER: Stage[] = ["PENDING", "APPROVED", "NEGOTIATING"];
 
+const DEMO_CONTROLS = process.env.NEXT_PUBLIC_DEMO_CONTROLS === "true";
+
 // The pending-approval placeholder on /command's canvas corner — resolves
 // visibly (stamp animation) the instant APPROVAL_DECIDED arrives, whether
 // that's from a real WS broadcast or (fixture mode) fixtureBus relaying a
 // tap on /phone in the other window. See page.tsx for the subscription.
-export default function ApprovalStatusCard({ decision }: { decision: ApprovalDecision | null }) {
+// Once approved, it grows the "Call vendor" affordance — the entry point to
+// D5b's call mode (page.tsx owns the actual POST /calls/start).
+export default function ApprovalStatusCard({
+  decision,
+  vendorName,
+  onCallVendor,
+  callStarting,
+}: {
+  decision: ApprovalDecision | null;
+  vendorName?: string;
+  onCallVendor?: (mode: "LIVE" | "REPLAY") => void;
+  callStarting?: boolean;
+}) {
   const [stage, setStage] = useState<Stage>("PENDING");
 
   useEffect(() => {
@@ -74,6 +89,34 @@ export default function ApprovalStatusCard({ decision }: { decision: ApprovalDec
             <span key={s} className={`h-1 flex-1 rounded-sm ${ORDER.indexOf(stage) >= i ? "bg-success" : "bg-surface-3"}`} />
           ))}
         </div>
+      )}
+
+      {resolved && !rejected && onCallVendor && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9 }}
+          className="mt-3 space-y-1.5"
+        >
+          <Button
+            className="w-full"
+            icon={<PhoneOutgoing size={14} />}
+            disabled={callStarting}
+            onClick={() => onCallVendor("LIVE")}
+          >
+            {callStarting ? "Starting call…" : `Call ${vendorName ?? "vendor"}`}
+          </Button>
+          {DEMO_CONTROLS && (
+            <button
+              type="button"
+              disabled={callStarting}
+              onClick={() => onCallVendor("REPLAY")}
+              className="w-full text-center text-[10.5px] text-ink-faint underline decoration-dotted underline-offset-2 hover:text-ink"
+            >
+              rehearse with replay instead
+            </button>
+          )}
+        </motion.div>
       )}
     </div>
   );

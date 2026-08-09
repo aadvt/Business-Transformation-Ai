@@ -4,6 +4,8 @@ import type {
   ApprovalDecisionRequest,
   ApprovalDecisionResponse,
   AuditTrail,
+  CallSession,
+  CallStartRequest,
   DashboardSummary,
   DemoState,
   Disruption,
@@ -106,6 +108,84 @@ function matchesPublicVendorFilters(vendor: PublicVendorDetail, params: PublicVe
   return true;
 }
 
+// ---- Public directory adapter --------------------------------------------
+// The backend's public vendor shape nests reliability/verification and uses a
+// qualitative capacity_hint; the directory UI renders the flat shape below.
+
+interface BackendVerificationDetail {
+  field: string;
+  status: string;
+  description: string;
+}
+
+interface BackendPublicVendor {
+  id: string;
+  name: string;
+  category: string;
+  city: string;
+  state: string;
+  distance_km: number | null;
+  lead_time_days: number;
+  capacity_hint: string | null;
+  price_band: string | null;
+  languages: string[];
+  reliability: { score_0_100: number; on_time_rate: number; orders_completed: number };
+  verification: {
+    overall_status: string;
+    gstin_status: string;
+    gstin_masked: string;
+    udyam_status: string | null;
+    details: BackendVerificationDetail[];
+    source: string;
+    checked_at: string;
+  };
+}
+
+const CAPACITY_FROM_HINT: Record<string, number> = {
+  "Very High": 50000,
+  High: 20000,
+  Medium: 8000,
+  Low: 2000,
+};
+
+function adaptPublicVendor(v: BackendPublicVendor): PublicVendorDetail {
+  const details = v.verification?.details ?? [];
+  const detailValid = (field: string) => details.find((d) => d.field === field)?.status === "VALID";
+  const stateCode = v.verification?.gstin_masked?.slice(0, 2) ?? null;
+  return {
+    id: v.id,
+    name: v.name,
+    category: v.category,
+    city: v.city,
+    state: v.state,
+    pincode: "",
+    distance_km: v.distance_km,
+    lead_time_days: v.lead_time_days,
+    capacity_units_per_month: CAPACITY_FROM_HINT[v.capacity_hint ?? ""] ?? 5000,
+    reliability_score_0_100: v.reliability?.score_0_100 ?? 0,
+    languages: v.languages ?? [],
+    verified: v.verification?.overall_status === "VERIFIED",
+    gstin_verified: v.verification?.gstin_status === "VERIFIED",
+    gstin_masked: v.verification?.gstin_masked ?? "***",
+    verification: {
+      gstin_structure_valid: detailValid("GSTIN Structure"),
+      gstin_checksum_valid: detailValid("GSTIN Checksum"),
+      state_code: stateCode,
+      state_code_resolved: Boolean(stateCode && /^\d{2}$/.test(stateCode)),
+      udyam_format_valid: v.verification?.udyam_status === "VERIFIED",
+      source: v.verification?.source ?? "OFFLINE",
+      checked_at: v.verification?.checked_at ?? "",
+    },
+    reliability: {
+      score_0_100: v.reliability?.score_0_100 ?? 0,
+      on_time_rate: v.reliability?.on_time_rate ?? 0,
+      orders_completed: v.reliability?.orders_completed ?? 0,
+      disputes: 0,
+    },
+    orders_completed: v.reliability?.orders_completed ?? 0,
+  };
+}
+
 export const api = {
   getAgentsStatus: () => request<AgentsStatusResponse>("/api/v1/agents/status"),
 
@@ -129,8 +209,13 @@ export const api = {
       body: JSON.stringify({ disruption_id: disruptionId }),
     }),
 
+  startCall: (body: CallStartRequest) =>
+    request<CallSession>("/api/v1/calls/start", { method: "POST", body: JSON.stringify(body) }),
+
+  getCall: (callId: string) => request<CallSession>(`/api/v1/calls/${callId}`),
+
   replayLastCall: (callId: string) =>
-    request(`/api/v1/calls/${callId}/replay`, { method: "POST" }),
+    request<CallSession>(`/api/v1/calls/${callId}/replay`, { method: "POST" }),
 
   getAgentSheetCsvUrl: (disruptionId?: string) =>
     `${API_BASE_URL}/api/v1/agent/vendor-sheet.csv${query({ disruption_id: disruptionId })}`,
@@ -171,7 +256,9 @@ export const api = {
     }),
 
   getSimulateTargets: () =>
-    USE_FIXTURES ? Promise.resolve(simulateTargetsFixture) : request<SimulateTarget[]>("/api/v1/simulate/targets"),
+    USE_FIXTURES
+      ? Promise.resolve(simulateTargetsFixture)
+      : request<{ items: SimulateTarget[] }>("/api/v1/simulate/targets").then((r) => r.items),
 
   simulateDisruption: (body: SimulateDisruptionRequest) =>
     USE_FIXTURES
@@ -208,17 +295,14 @@ export const api = {
           items: allPublicVendors().filter((v) => matchesPublicVendorFilters(v, params)),
           total: allPublicVendors().filter((v) => matchesPublicVendorFilters(v, params)).length,
         })
-      : request<PublicVendorList>(
-          `/api/v1/public/vendors${query({
-            category: params.category,
-            pincode: params.pincode,
-            radius_km: params.radius_km,
-            max_lead_time_days: params.max_lead_time_days,
-            min_capacity: params.min_capacity,
-            languages: params.languages,
-            verified: params.verified,
-          })}`
-        ),
+      : request<{ items: BackendPublicVendor[]; total: number }>(
+          // The backend only filters on category/verified; the rest of the
+          // filter set is applied client-side on the adapted items.
+          `/api/v1/public/vendors${query({ category: params.category, verified: params.verified })}`
+        ).then((r) => {
+          const items = r.items.map(adaptPublicVendor).filter((v) => matchesPublicVendorFilters(v, params));
+          return { items, total: items.length } satisfies PublicVendorList;
+        }),
 
   getPublicVendor: (id: string) =>
     USE_FIXTURES
@@ -226,7 +310,7 @@ export const api = {
           const vendor = findPublicVendor(id);
           return vendor ? Promise.resolve(vendor) : Promise.reject(new ApiError(404, "Vendor not found."));
         })()
-      : request<PublicVendorDetail>(`/api/v1/public/vendors/${id}`),
+      : request<BackendPublicVendor>(`/api/v1/public/vendors/${id}`).then(adaptPublicVendor),
 
   registerVendor: (body: VendorRegistrationRequest) =>
     USE_FIXTURES
@@ -235,10 +319,12 @@ export const api = {
           if (!result.ok) return Promise.reject(new ApiError(422, result.reason));
           return Promise.resolve<VendorRegistrationResponse>({ vendor: result.vendor });
         })()
-      : request<VendorRegistrationResponse>("/api/v1/public/vendors/register", {
+      : request<{ vendor_id: string }>("/api/v1/public/vendors/register", {
           method: "POST",
           body: JSON.stringify(body),
-        }),
+        })
+          .then((r) => request<BackendPublicVendor>(`/api/v1/public/vendors/${r.vendor_id}`))
+          .then((v) => ({ vendor: adaptPublicVendor(v) }) satisfies VendorRegistrationResponse),
 };
 
 export function wsUrl(): string {

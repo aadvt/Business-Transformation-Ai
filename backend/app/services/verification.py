@@ -146,6 +146,10 @@ def _check_udyam(udyam_number: str | None) -> CheckResult:
     )
 
 
+def _fresh_enough(row: VerificationRow) -> bool:
+    return utc_now() - as_utc(row.checked_at) <= timedelta(hours=settings.verification_cache_ttl_hours)
+
+
 def _get_cached(session: Session, vendor_id: str) -> VerificationRow | None:
     row = session.execute(
         select(VerificationRow)
@@ -155,16 +159,35 @@ def _get_cached(session: Session, vendor_id: str) -> VerificationRow | None:
     ).scalar_one_or_none()
     if row is None:
         return None
-    age = utc_now() - as_utc(row.checked_at)
-    if age > timedelta(hours=settings.verification_cache_ttl_hours):
-        return None
-    return row
+    return row if _fresh_enough(row) else None
+
+
+def load_verification_cache(session: Session, vendor_ids: list[str]) -> dict[str, VerificationRow]:
+    """One query's worth of cached verifications for many vendors, to be passed
+    into `verify_vendor(..., cache=...)`. Verifying a directory page one vendor
+    at a time meant one cache-lookup round-trip per row — seconds of latency on
+    a 24-vendor list, for checks that are themselves offline and instant."""
+    if not vendor_ids:
+        return {}
+    rows = session.execute(
+        select(VerificationRow)
+        .where(VerificationRow.vendor_id.in_(vendor_ids))
+        .order_by(VerificationRow.checked_at.asc())
+    ).scalars().all()
+    # Ascending, so the last write per vendor wins — same "most recent
+    # checked_at" rule the single-vendor lookup applies.
+    latest: dict[str, VerificationRow] = {r.vendor_id: r for r in rows}
+    return {vid: row for vid, row in latest.items() if _fresh_enough(row)}
 
 
 def verify_vendor(
-    session: Session, vendor: VendorRow, *, disruption_id: str | None = None
+    session: Session,
+    vendor: VendorRow,
+    *,
+    disruption_id: str | None = None,
+    cache: dict[str, VerificationRow] | None = None,
 ) -> VerificationResult:
-    cached = _get_cached(session, vendor.id)
+    cached = cache.get(vendor.id) if cache is not None else _get_cached(session, vendor.id)
     if cached is not None:
         return VerificationResult(
             overall_status=VerificationStatus(cached.overall_status),

@@ -13,12 +13,25 @@ from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
-from app.db.models import DisruptionEvent, PurchaseOrder, VendorCandidate, RemediationPlanRow
+from app.db.models import DisruptionEvent, PurchaseOrder, Vendor, VendorCandidate, RemediationPlanRow
 from app.schemas.enums import PlanChangeKind
 from app.schemas.money import format_inr, utc_now
 from app.services.exposure import AffectedPO, BackupQuote, compute_exposure
 
 MAX_PRICE_UPLIFT_PCT = 0.15  # 15% above incumbent
+
+# Concentration-risk cap: after one vendor just failed us, no single backup
+# takes more than this share of the replacement order — the disruption came
+# from concentration, the fix shouldn't recreate it. Both solvers apply it.
+MAX_VENDOR_SHARE = 0.45
+
+
+def _vendor_cap(required_qty: int, n_candidates: int) -> int:
+    share_cap = -(-required_qty * 45 // 100)  # ceil(required * 0.45)
+    # With few candidates the share cap can make full coverage infeasible —
+    # relax to an even split so the order is always coverable.
+    feasible_floor = -(-required_qty // max(n_candidates, 1))
+    return max(1, share_cap, feasible_floor)
 
 
 @dataclass(frozen=True)
@@ -45,10 +58,11 @@ def _solve_greedy(
     for candidate in candidates:
         if remaining_qty <= 0:
             break
-        # Assume candidate can provide up to required_qty
-        qty = remaining_qty  # Take all remaining from this candidate
+        # Same concentration cap as the CP-SAT model, so both solvers split a
+        # large order the same way instead of dumping it on rank 1.
+        qty = min(remaining_qty, _vendor_cap(required_qty, len(candidates)))
         qty_by_vendor[candidate.vendor_id] = qty
-        remaining_qty = 0
+        remaining_qty -= qty
 
     solve_ms = (time.monotonic() - start) * 1000
     return SolverResult(
@@ -69,6 +83,7 @@ def _solve_ortools(
     pull_forward_capacity: int = 0,
     max_lead_time_days: int = 30,
     per_unit_per_day_penalty: int = 1000,
+    vendor_names: dict[str, str] | None = None,
 ) -> SolverResult:
     """OR-Tools CP-SAT solver. Falls back to greedy on error/timeout."""
     try:
@@ -87,11 +102,9 @@ def _solve_ortools(
     # Constraint: total qty equals required
     model.Add(sum(vendor_qty.values()) + pull_forward == required_qty)
 
-    # Constraint: each vendor's qty <= capacity (use quoted qty as proxy)
+    # Constraint: concentration-risk cap per vendor (see MAX_VENDOR_SHARE).
     for candidate in candidates:
-        # Assume quoted qty is available; in reality would be candidate.capacity or similar
-        max_qty = min(required_qty, 1000)  # Placeholder; real impl reads candidate.capacity
-        model.Add(vendor_qty[candidate.vendor_id] <= max_qty)
+        model.Add(vendor_qty[candidate.vendor_id] <= _vendor_cap(required_qty, len(candidates)))
 
     # Objective: minimize cost + lateness penalty
     cost_terms = []
@@ -125,7 +138,9 @@ def _solve_ortools(
     qty_by_vendor = {vid: int(solver.Value(qty_var)) for vid, qty_var in vendor_qty.items() if solver.Value(qty_var) > 0}
     pull_forward_qty = int(solver.Value(pull_forward))
 
-    # Check for escalation (price uplift > MAX_PRICE_UPLIFT_PCT)
+    # Check for escalation (price uplift > MAX_PRICE_UPLIFT_PCT). The reason
+    # is shown to a human in the plan panel, so it names the vendor — a raw
+    # UUID in a banner tells the reader nothing.
     requires_escalation = False
     escalation_reason = None
     for candidate in candidates:
@@ -133,7 +148,12 @@ def _solve_ortools(
             uplift = (candidate.quoted_unit_price_paise - reference_price_paise) / reference_price_paise if reference_price_paise > 0 else 0
             if uplift > MAX_PRICE_UPLIFT_PCT:
                 requires_escalation = True
-                escalation_reason = f"Vendor {candidate.vendor_id} unit price uplift {uplift*100:.1f}% exceeds {MAX_PRICE_UPLIFT_PCT*100:.0f}% cap"
+                name = (vendor_names or {}).get(candidate.vendor_id, "This vendor")
+                escalation_reason = (
+                    f"{name} quotes {format_inr(candidate.quoted_unit_price_paise)}/unit — "
+                    f"{uplift * 100:.1f}% above the {format_inr(reference_price_paise)} incumbent price, "
+                    f"over the {MAX_PRICE_UPLIFT_PCT * 100:.0f}% cap"
+                )
                 break
 
     return SolverResult(
@@ -177,17 +197,28 @@ def build_plan(session: Session, disruption: DisruptionEvent, candidates: list[V
     ]
     before_exposure = compute_exposure(affected_po_objs, production_critical=True)
 
+    # One lookup for every candidate vendor, shared by the solver's escalation
+    # message and the change rows below.
+    vendors_by_id = {
+        v.id: v
+        for v in session.query(Vendor).filter(Vendor.id.in_([c.vendor_id for c in candidates])).all()
+    } if candidates else {}
+    vendor_names = {vid: v.name for vid, v in vendors_by_id.items()}
+
     # Solve
     solver_result = _solve_ortools(
         required_qty=required_qty,
         affected_pos=affected_pos,
         candidates=candidates,
         reference_price_paise=reference_price,
+        vendor_names=vendor_names,
     )
 
     # Build plan changes
     changes = []
-    eta_base = disruption.detected_at + timedelta(days=7)  # Placeholder
+    eta_base = utc_now()
+    split = len(solver_result.qty_by_vendor_id) + (1 if solver_result.pull_forward_qty > 0 else 0) > 1
+    change_kind = PlanChangeKind.SPLIT_ORDER.value if split else PlanChangeKind.SWITCH_VENDOR.value
 
     for vendor_id, qty in solver_result.qty_by_vendor_id.items():
         candidate = next((c for c in candidates if c.vendor_id == vendor_id), None)
@@ -195,9 +226,11 @@ def build_plan(session: Session, disruption: DisruptionEvent, candidates: list[V
             continue
         eta = eta_base + timedelta(days=candidate.quoted_lead_time_days)
         changes.append({
-            "kind": PlanChangeKind.SWITCH_VENDOR.value,
+            "kind": change_kind,
             "vendor_id": vendor_id,
+            "vendor_name": vendor_names.get(vendor_id, "Backup vendor"),
             "item_sku": affected_pos[0].item_sku if affected_pos else "",
+            "item_name": affected_pos[0].item_name if affected_pos else "",
             "qty": qty,
             "unit_price_paise": candidate.quoted_unit_price_paise,
             "unit_price_display": format_inr(candidate.quoted_unit_price_paise),
@@ -210,21 +243,34 @@ def build_plan(session: Session, disruption: DisruptionEvent, candidates: list[V
         changes.append({
             "kind": PlanChangeKind.PULL_FORWARD_STOCK.value,
             "vendor_id": None,
+            "vendor_name": "Internal stock",
             "item_sku": affected_pos[0].item_sku if affected_pos else "",
+            "item_name": affected_pos[0].item_name if affected_pos else "",
             "qty": solver_result.pull_forward_qty,
             "unit_price_paise": 0,
             "unit_price_display": "₹0",
             "lead_time_days": 0,
-            "eta_date": disruption.detected_at.isoformat()[:10],
+            "eta_date": utc_now().isoformat()[:10],
             "rationale": "Use existing inventory above safety stock",
         })
 
-    # Compute after-exposure with substituted terms
-    after_affected_pos = []
-    for po in affected_po_objs:
-        # Find how much of this PO is covered by plan
-        # Simplified: assume all qty from candidates
-        after_affected_pos.append(po)  # Would be modified by plan in real impl
+    # After-exposure: the same compute_exposure formula, fed the residual
+    # (plan-uncovered) quantities. Full coverage zeroes blocked value; a PO's
+    # penalty only survives if some of its quantity remains uncovered.
+    covered_qty = sum(solver_result.qty_by_vendor_id.values()) + solver_result.pull_forward_qty
+    uncovered_ratio = max(0.0, 1.0 - (covered_qty / required_qty)) if required_qty > 0 else 0.0
+    after_affected_pos = [
+        AffectedPO(
+            po_id=po.po_id,
+            po_number=po.po_number,
+            undelivered_qty=round(po.undelivered_qty * uncovered_ratio),
+            unit_price_paise=po.unit_price_paise,
+            downstream_order_ref=po.downstream_order_ref,
+            downstream_order_value_paise=po.downstream_order_value_paise if uncovered_ratio > 0 else None,
+            penalty_rate_bps=po.penalty_rate_bps if uncovered_ratio > 0 else None,
+        )
+        for po in affected_po_objs
+    ]
     after_exposure = compute_exposure(after_affected_pos, production_critical=True)
 
     cost_to_resolve = sum(

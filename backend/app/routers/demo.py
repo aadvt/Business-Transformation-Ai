@@ -25,11 +25,14 @@ from app.config import settings
 from app.constants import DEFAULT_ORG_ID
 from app.db.models import (
     AgentRun,
+    AgentSheetSync as AgentSheetSyncRow,
     Approval,
     AuditLogEntry,
+    CallSession,
     DisruptionEvent,
     ExposureCalc,
     Negotiation,
+    RemediationPlanRow,
     Vendor as VendorRow,
     VendorCandidate,
     Verification,
@@ -53,6 +56,9 @@ router = APIRouter(prefix="/api/v1/demo", tags=["demo"], dependencies=[Depends(r
 _TABLES_TO_CLEAR: list[tuple[str, type]] = [
     ("agent_runs", AgentRun),
     ("audit_log", AuditLogEntry),
+    ("call_sessions", CallSession),
+    ("remediation_plans", RemediationPlanRow),
+    ("agent_sheet_syncs", AgentSheetSyncRow),
     ("vendor_candidates", VendorCandidate),
     ("verifications", Verification),
     ("negotiations", Negotiation),

@@ -128,7 +128,7 @@ def test_summary_exposure_matches_db_row_exactly(session):
     d = _disruption(session)
     g = build_impact_graph(session, d)
     row = session.get(ExposureCalc, "exp1")
-    assert g.summary.exposure_total_paise == row.total_paise
+    assert g.summary.exposure_paise == row.total_paise
     assert g.summary.exposure_confidence == row.confidence
     assert g.summary.exposure_calc_id == row.id
 
@@ -196,7 +196,7 @@ def test_severity_tier_matches_configured_thresholds(session):
         "tier_2_paise": settings.impact_tier2_exposure_paise,
     }
     # 920,000.00 paise (₹9.2L) is below tier 1 (₹10L) and above tier 2 (₹3L)
-    assert g.summary.severity_tier == 2
+    assert g.summary.tier == "ELEVATED"
 
 
 def test_no_exposure_row_yields_zero_summary(session):
@@ -204,6 +204,16 @@ def test_no_exposure_row_yields_zero_summary(session):
     session.commit()
     d = _disruption(session)
     g = build_impact_graph(session, d)
-    assert g.summary.exposure_total_paise == 0
+    assert g.summary.exposure_paise == 0
     assert g.summary.exposure_calc_id is None
-    assert g.summary.severity_tier == 3
+    assert g.summary.tier == "MODERATE"
+
+
+def test_summary_counts_match_the_graph_it_describes(session):
+    """The counts the UI renders are derived from these same nodes — a
+    mismatch would put a number on screen the graph can't account for."""
+    d = _disruption(session)
+    g = build_impact_graph(session, d)
+    assert g.summary.impacted_node_count == sum(1 for n in g.nodes if n.state == GraphNodeState.IMPACTED)
+    assert g.summary.at_risk_order_count == sum(1 for n in g.nodes if n.kind == GraphNodeKind.ORDER)
+    assert g.summary.at_risk_order_count == 2  # po1 and po3 carry a downstream_order_ref

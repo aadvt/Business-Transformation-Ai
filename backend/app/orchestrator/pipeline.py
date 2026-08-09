@@ -20,7 +20,7 @@ from app.agents.sourcing import SourcingAgent
 from app.db.models import Approval as ApprovalRow, DisruptionEvent, VendorCandidate
 from app.db.session import SessionLocal
 from app.orchestrator.engine import IllegalTransitionError, transition
-from app.schemas.enums import AgentName, AgentStatus, GraphNodeKind, GraphNodeState, WSEventType
+from app.schemas.enums import AgentName, AgentStatus, WSEventType
 from app.schemas.money import utc_now
 from app.services.audit import append_audit
 from app.services.impact import get_or_build_impact_graph
@@ -151,15 +151,13 @@ def _compute_impact_and_audit(session, org_id: str, disruption: DisruptionEvent)
     AuditLogEntry directly.
     """
     graph = get_or_build_impact_graph(session, disruption)
-    impacted_node_count = sum(1 for n in graph.nodes if n.state == GraphNodeState.IMPACTED)
-    at_risk_order_count = sum(1 for n in graph.nodes if n.kind == GraphNodeKind.ORDER)
 
     append_audit(
         session, org_id=org_id, disruption_id=disruption.id, actor_type="AGENT", actor="ORCHESTRATOR",
         action="IMPACT_COMPUTED",
         detail={
-            "impacted_node_count": impacted_node_count,
-            "at_risk_order_count": at_risk_order_count,
+            "impacted_node_count": graph.summary.impacted_node_count,
+            "at_risk_order_count": graph.summary.at_risk_order_count,
             "exposure_calc_id": graph.summary.exposure_calc_id,
         },
     )

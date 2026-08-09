@@ -71,7 +71,10 @@ export default function VendorDetailPage() {
         <div>
           <div className="mb-1.5 flex items-center gap-2.5">
             <h1 className="text-[20px] font-semibold tracking-tight text-slate-900">{vendor.name}</h1>
-            <VerificationBadge verified={vendor.verified} />
+            <VerificationBadge
+              verified={vendor.verified}
+              gstinVerified={vendor.verification.gstin_structure_valid && vendor.verification.gstin_checksum_valid}
+            />
           </div>
           <p className="text-[13.5px] text-slate-500">{vendor.category}</p>
           <p className="mt-2 flex items-center gap-1 text-[13px] text-slate-500">

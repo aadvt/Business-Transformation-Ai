@@ -64,11 +64,13 @@
       }
     ],
     "summary": {
-      "exposure_total_paise": 1850000000,
-      "exposure_total_display": "₹1,85,00,000",
+      "impacted_node_count": 4,
+      "at_risk_order_count": 1,
+      "exposure_paise": 1850000000,
+      "exposure_display": "₹1,85,00,000",
       "exposure_confidence": 0.87,
       "exposure_calc_id": "mock-exposure-d1",
-      "severity_tier": 1,
+      "tier": "CRITICAL",
       "tier_thresholds_paise": { "tier_1_paise": 100000000, "tier_2_paise": 30000000 }
     },
     "computed_at": "2026-08-07T03:15:00+00:00"

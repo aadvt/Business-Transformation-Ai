@@ -39,8 +39,22 @@ def _vendor_dues_paise(session: Session, vendor_id: str) -> int:
     return int(total)
 
 
-def _to_vendor_schema(session: Session, row: VendorRow) -> Vendor:
-    dues = _vendor_dues_paise(session, row.id)
+def _pending_dues_by_vendor(session: Session, vendor_ids: list[str]) -> dict[str, int]:
+    """One grouped query for many vendors — the list endpoints would otherwise
+    do a SUM round-trip per row, which is seconds of latency against Neon."""
+    if not vendor_ids:
+        return {}
+    rows = session.execute(
+        select(SettlementItem.vendor_id, func.coalesce(func.sum(SettlementItem.amount_paise), 0))
+        .where(SettlementItem.vendor_id.in_(vendor_ids), SettlementItem.status == "PENDING")
+        .group_by(SettlementItem.vendor_id)
+    ).all()
+    return {vendor_id: int(total) for vendor_id, total in rows}
+
+
+def _to_vendor_schema(session: Session, row: VendorRow, dues: int | None = None) -> Vendor:
+    if dues is None:
+        dues = _vendor_dues_paise(session, row.id)
     return Vendor(
         id=row.id,
         created_at=to_iso(row.created_at),
@@ -102,7 +116,8 @@ def list_vendors(session: Session, search: str | None, limit: int) -> VendorList
             | func.lower(VendorRow.city).like(needle)
         )
     rows = session.execute(query.order_by(VendorRow.name).limit(limit)).scalars().all()
-    items = [_to_vendor_schema(session, r) for r in rows]
+    dues_by_vendor = _pending_dues_by_vendor(session, [r.id for r in rows])
+    items = [_to_vendor_schema(session, r, dues=dues_by_vendor.get(r.id, 0)) for r in rows]
     return VendorList(items=items, total=len(items))
 
 

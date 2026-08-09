@@ -24,11 +24,15 @@ class ImpactSummary(ApiModel):
     """Reuses the disruption's own latest exposure_calcs row — never a second,
     independently-computed number. See app/services/impact.py's docstring."""
 
-    exposure_total_paise: int
-    exposure_total_display: str
+    impacted_node_count: int
+    at_risk_order_count: int
+    exposure_paise: int
+    exposure_display: str
     exposure_confidence: float
     exposure_calc_id: str | None
-    severity_tier: int
+    # Human-readable tier ("CRITICAL" | "ELEVATED" | "MODERATE") plus the
+    # thresholds it was derived from, so the UI can show its work.
+    tier: str
     tier_thresholds_paise: dict[str, int]
 
 

@@ -17,10 +17,6 @@ import type { ApprovalDecision, PhoneMessage } from "@/lib/types";
 // (right, light green).
 const USE_FIXTURES = process.env.NEXT_PUBLIC_USE_FIXTURES === "true";
 
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 function timeLabel(iso: string) {
   return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
@@ -143,7 +139,8 @@ export default function PhonePage() {
   // retry — a double-tap must never submit two different keys.
   const idempotencyKeys = useRef<Record<string, string>>({});
   const bottomRef = useRef<HTMLDivElement>(null);
-  const processingRef = useRef(false);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const drainUntilRef = useRef(0);
 
   // The drain effect below only ever *appends* newly-arrived messages, so an
   // already-displayed message (the approval card, chiefly) needs its own
@@ -155,34 +152,34 @@ export default function PhonePage() {
     setDisplayed((prev) => prev.map((m) => data.items.find((d) => d.id === m.id) ?? m));
   }, [data]);
 
+  // Newly-arrived messages are appended on staggered timers (typing bubble
+  // before each agent message). The timers are deliberately NOT cleared when
+  // `data` refetches — cancelling the drain on every 5s poll is what used to
+  // stall the thread at one message per poll. They're only cleared on unmount.
   useEffect(() => {
-    if (!data || processingRef.current) return;
+    if (!data) return;
     const incoming = data.items.filter((m) => !seenIds.current.has(m.id));
     if (incoming.length === 0) return;
+    for (const m of incoming) seenIds.current.add(m.id);
 
-    processingRef.current = true;
-    let cancelled = false;
-
-    async function drain() {
-      for (const msg of incoming) {
-        if (cancelled) break;
-        seenIds.current.add(msg.id);
-        if (msg.from === "AGENT" && msg.kind !== "SYSTEM") {
-          setTyping(true);
-          await sleep(800);
-          if (cancelled) break;
-          setTyping(false);
-        }
-        setDisplayed((prev) => [...prev, msg]);
-        await sleep(150);
+    // Queue behind whatever is still animating from the previous batch.
+    let delay = Math.max(0, drainUntilRef.current - Date.now());
+    for (const msg of incoming) {
+      if (msg.from === "AGENT" && msg.kind !== "SYSTEM") {
+        timersRef.current.push(setTimeout(() => setTyping(true), delay));
+        delay += 800;
+        timersRef.current.push(setTimeout(() => setTyping(false), delay));
       }
-      processingRef.current = false;
+      timersRef.current.push(
+        setTimeout(() => setDisplayed((prev) => (prev.some((p) => p.id === msg.id) ? prev : [...prev, msg])), delay)
+      );
+      delay += 250;
     }
-    drain();
-
-    return () => {
-      cancelled = true;
-    };
+    drainUntilRef.current = Date.now() + delay;
+    // Deliberately no cleanup: seenIds (a ref) survives StrictMode's dev-mode
+    // remount, so clearing these timers there would permanently swallow the
+    // messages they were about to append. A timer firing after a real unmount
+    // is a no-op setState, which React ignores.
   }, [data]);
 
   useEffect(() => {
