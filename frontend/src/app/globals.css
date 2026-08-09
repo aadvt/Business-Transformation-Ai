@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
 /* Sanjeevani — supply-chain operations terminal.
    Design intent: dense, neutral, information-first. Colour is reserved for
@@ -39,9 +40,14 @@
   --color-info: #4d80b8;
   --color-neutral: #656b76;
 
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  --shadow-panel: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 1px 2px rgba(0, 0, 0, 0.5),
+    0 8px 20px -10px rgba(0, 0, 0, 0.55);
+  --shadow-panel-hover: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 2px rgba(0, 0, 0, 0.5),
+    0 14px 28px -12px rgba(0, 0, 0, 0.6);
 }
 
 @layer base {
@@ -63,6 +69,7 @@
 
   * {
     box-sizing: border-box;
+    border-color: var(--color-line);
   }
 
   /* Numerals never reflow when values tick — this is the single biggest
@@ -104,18 +111,35 @@
 
 /* ---------------- Utilities ---------------- */
 
-/* Flat panel — the only container treatment in the system. */
+/* Panel — the core container treatment. A crisp border plus a soft,
+   grounded shadow reads as real elevation without any glow or gradient. */
 @utility panel {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
 }
 
 @utility panel-flush {
   background: var(--color-surface);
   border: 1px solid var(--color-line);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-panel);
   overflow: hidden;
+}
+
+/* Interactive panels (cards you can act on) lift slightly on hover. */
+@utility panel-interactive {
+  transition:
+    box-shadow 140ms ease,
+    border-color 140ms ease,
+    transform 140ms ease;
+
+  &:hover {
+    border-color: var(--color-line-strong);
+    box-shadow: var(--shadow-panel-hover);
+    transform: translateY(-1px);
+  }
 }
 
 /* Micro caps — column headers, section eyebrows, metric labels. */
@@ -132,6 +156,14 @@
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
+}
+
+/* Floating layers (menus, dialogs, tooltips) get a crisp border plus a
+   grounded drop shadow instead of a glow — depth without decoration. */
+@utility elevated {
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-line-strong);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.7);
 }
 
 @utility row-hover {

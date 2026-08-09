@@ -24,12 +24,26 @@ _HEADER = [
     "Timestamp",
     "Call SID",
     "Vendor",
+    "Contact Person",
     "Outcome",
     "Agreed Amount",
     "Currency",
     "Purpose",
     "Notes",
     "Transaction ID",
+]
+
+# Columns of the "Vendor Directory" tab — filled in by the owner, referenced
+# when placing an outbound call manually (contact/vendor/phone/purpose go
+# into that call's user_data so the negotiation agent's {vendor_name} /
+# {contact_person} / {purpose} template variables are populated).
+VENDOR_DIRECTORY_HEADER = [
+    "Contact Person",
+    "Vendor Name",
+    "Phone Number",
+    "Category / What They're Called About",
+    "Reference Amount",
+    "Notes",
 ]
 
 _SCOPES = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file"]
@@ -61,7 +75,7 @@ def _worksheet():
         ws = sheet.add_worksheet(title="Negotiations", rows=1000, cols=len(_HEADER))
         ws.append_row(_HEADER)
     if ws.row_values(1) != _HEADER:
-        ws.update("A1", [_HEADER])
+        ws.update(range_name="A1", values=[_HEADER])
     return ws
 
 
@@ -77,6 +91,7 @@ def append_negotiation_row(entry: dict[str, Any]) -> bool:
                 entry.get("created_at", ""),
                 entry.get("call_sid", ""),
                 entry.get("vendor_name", ""),
+                entry.get("contact_person") or "",
                 entry.get("outcome", ""),
                 entry.get("agreed_amount") if entry.get("agreed_amount") is not None else "",
                 entry.get("currency", ""),
@@ -90,3 +105,22 @@ def append_negotiation_row(entry: dict[str, Any]) -> bool:
     except Exception as exc:  # never let a Sheets hiccup break outcome recording
         print(f"[voice.sheets] append_negotiation_row failed: {exc}", file=sys.stderr)
         return False
+
+
+def get_vendor_directory() -> list[dict[str, Any]]:
+    """Reads the "Vendor Directory" tab the owner fills in. Returns [] if
+    Sheets isn't configured, the tab doesn't exist yet, or the read fails —
+    this is a convenience lookup, never a hard dependency."""
+    try:
+        spreadsheet_id = os.environ.get("NEGOTIATION_SPREADSHEET_ID")
+        if not spreadsheet_id:
+            return []
+        client = _client()
+        if client is None:
+            return []
+        sheet = client.open_by_key(spreadsheet_id)
+        ws = sheet.worksheet("Vendor Directory")
+        return ws.get_all_records()
+    except Exception as exc:
+        print(f"[voice.sheets] get_vendor_directory failed: {exc}", file=sys.stderr)
+        return []
