@@ -1,7 +1,7 @@
 import Badge from "./ui/Badge";
 import type { DisruptionStage } from "@/lib/types";
 
-const STAGE_CONFIG: Record<DisruptionStage, { tone: "accent" | "alert" | "positive" | "progress" | "idle"; label: string }> = {
+const STAGE_CONFIG: Record<DisruptionStage, { tone: "accent" | "alert" | "positive" | "progress" | "idle" | "neutral"; label: string }> = {
   DETECTED: { tone: "progress", label: "Sensing" },
   DIAGNOSED: { tone: "progress", label: "Diagnosis" },
   SOURCING: { tone: "progress", label: "Sourcing" },

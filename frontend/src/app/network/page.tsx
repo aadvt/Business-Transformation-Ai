@@ -6,9 +6,7 @@ import PageHeader from "@/components/PageHeader";
 const NetworkMap = dynamic(() => import("@/components/NetworkMap"), {
   ssr: false,
   loading: () => (
-    <div className="glass-panel flex h-full items-center justify-center rounded-2xl text-sm text-ink-muted">
-      Loading map…
-    </div>
+    <div className="panel flex h-full items-center justify-center text-[13px] text-ink-faint">Loading map…</div>
   ),
 });
 

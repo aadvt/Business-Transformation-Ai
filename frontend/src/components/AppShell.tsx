@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, LayoutGrid, Network, User, Wallet, Workflow } from "lucide-react";
-import { AnimatePresence, motion } from "framer-motion";
+import { Activity, LayoutGrid, Network, Wallet, Workflow } from "lucide-react";
 import clsx from "clsx";
 import type { ReactNode } from "react";
 import { useDisruptions } from "@/lib/queries";
@@ -11,15 +10,15 @@ import { useLiveFeed } from "@/lib/live";
 
 const NAV_ITEMS = [
   { href: "/", label: "War Room", icon: LayoutGrid },
-  { href: "/waterfall", label: "Live Pipeline", icon: Workflow },
+  { href: "/waterfall", label: "Pipeline", icon: Workflow },
   { href: "/settlement", label: "Settlement", icon: Wallet },
   { href: "/network", label: "Network", icon: Network },
 ];
 
-const CONNECTION_COPY = {
-  open: { label: "Live", dot: "bg-positive", glow: "shadow-[0_0_10px_var(--color-positive)]" },
-  connecting: { label: "Connecting…", dot: "bg-accent", glow: "shadow-[0_0_10px_var(--color-accent)]" },
-  closed: { label: "Reconnecting…", dot: "bg-alert", glow: "shadow-[0_0_10px_var(--color-alert)]" },
+const CONNECTION = {
+  open: { label: "Live", dot: "bg-success" },
+  connecting: { label: "Connecting", dot: "bg-warning animate-blink" },
+  closed: { label: "Reconnecting", dot: "bg-critical animate-blink" },
 } as const;
 
 export default function AppShell({ children }: { children: ReactNode }) {
@@ -27,28 +26,24 @@ export default function AppShell({ children }: { children: ReactNode }) {
   const { connectionState } = useLiveFeed();
   const { data } = useDisruptions("AWAITING_APPROVAL");
   const pendingApprovalsCount = data?.total ?? 0;
-  const connection = CONNECTION_COPY[connectionState];
+  const connection = CONNECTION[connectionState];
+  const current = NAV_ITEMS.find((i) => i.href === pathname);
 
   return (
     <div className="flex min-h-screen">
-      <aside className="glass-panel sticky top-0 z-20 m-3 mr-0 flex h-[calc(100vh-1.5rem)] w-60 shrink-0 flex-col rounded-3xl">
-        <div className="px-5 py-6">
-          <Link href="/" className="group block">
-            <div className="flex items-center gap-2.5">
-              <motion.span
-                className="h-7 w-7 rounded-xl bg-gradient-to-br from-accent-strong to-accent shadow-lg shadow-accent/40"
-                whileHover={{ rotate: 90, scale: 1.08 }}
-                transition={{ type: "spring", stiffness: 260, damping: 18 }}
-              />
-              <span className="text-[1.0625rem] font-bold tracking-tight text-ink">SANJEEVANI</span>
-            </div>
-            <p className="mt-1.5 pl-[2.375rem] text-[0.625rem] font-medium tracking-[0.16em] text-ink-faint uppercase">
-              Supply Chain Command
-            </p>
+      <aside className="fixed inset-y-0 left-0 z-20 flex w-[208px] flex-col border-r border-line bg-surface">
+        <div className="flex h-12 items-center gap-2 border-b border-line px-4">
+          <span className="h-4 w-1 rounded-sm bg-accent" />
+          <Link href="/" className="text-[13px] font-semibold tracking-wide text-ink">
+            SANJEEVANI
           </Link>
         </div>
 
-        <nav className="flex-1 space-y-1 px-3">
+        <div className="px-4 pt-4 pb-2">
+          <span className="eyebrow">Operations</span>
+        </div>
+
+        <nav className="flex-1 px-2">
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
@@ -57,87 +52,62 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 key={item.href}
                 href={item.href}
                 className={clsx(
-                  "relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors duration-200",
-                  active ? "text-accent-strong" : "text-ink-muted hover:text-ink"
+                  "relative flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[13px] transition-colors duration-100",
+                  active ? "bg-surface-2 font-medium text-ink" : "text-ink-muted hover:bg-surface-2 hover:text-ink"
                 )}
               >
-                {active && (
-                  <motion.span
-                    layoutId="nav-pill"
-                    className="absolute inset-0 rounded-xl bg-accent/12 ring-1 ring-accent/25"
-                    transition={{ type: "spring", stiffness: 380, damping: 32 }}
-                  />
-                )}
-                <Icon size={17} className="relative z-10" />
-                <span className="relative z-10">{item.label}</span>
+                {active && <span className="absolute top-1.5 bottom-1.5 -left-2 w-0.5 rounded-r-sm bg-accent" />}
+                <Icon size={15} className={active ? "text-accent" : ""} />
+                {item.label}
                 {item.href === "/" && pendingApprovalsCount > 0 && (
-                  <motion.span
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    className="relative z-10 ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-alert px-1.5 text-[0.625rem] font-bold text-white shadow-lg shadow-alert/40"
-                  >
+                  <span className="numeric ml-auto rounded-sm bg-critical/15 px-1.5 py-px text-[10px] font-semibold text-critical">
                     {pendingApprovalsCount}
-                  </motion.span>
+                  </span>
                 )}
               </Link>
             );
           })}
         </nav>
 
-        <div className="mx-3 mb-3 rounded-2xl bg-white/[0.03] px-4 py-3">
-          <div className="flex items-center gap-2 text-xs">
-            <span
-              className={clsx(
-                "h-1.5 w-1.5 rounded-full",
-                connection.dot,
-                connection.glow,
-                connectionState !== "closed" && "animate-live-dot"
-              )}
-            />
-            <span className="text-ink-muted">{connection.label}</span>
+        <div className="border-t border-line px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className={clsx("h-1.5 w-1.5 rounded-full", connection.dot)} />
+            <span className="text-[11px] text-ink-muted">{connection.label}</span>
           </div>
-          <p className="mt-1 text-[0.625rem] text-ink-faint">Powered by watsonx · Granite</p>
+          <p className="mt-1 text-[10px] text-ink-faint">Mahe Industries · Chakan</p>
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center justify-end gap-4 px-8 py-4">
-          <div className="glass flex items-center gap-4 rounded-2xl px-4 py-2">
-            <motion.button
-              type="button"
-              aria-label="Notifications"
-              whileTap={{ scale: 0.9 }}
-              className="relative cursor-pointer text-ink-muted transition-colors hover:text-ink"
-            >
-              <Bell size={17} />
-              {pendingApprovalsCount > 0 && (
-                <span className="absolute -top-1 -right-1.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-alert px-1 text-[0.5rem] font-bold text-white">
-                  {pendingApprovalsCount}
-                </span>
-              )}
-            </motion.button>
-            <span className="h-4 w-px bg-white/10" />
-            <div className="flex items-center gap-2 text-sm text-ink-muted">
-              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-accent/30 to-accent/5 ring-1 ring-white/10">
-                <User size={13} />
+      <div className="ml-[208px] flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-10 flex h-12 items-center justify-between border-b border-line bg-bg/95 px-6 backdrop-blur-sm">
+          <div className="flex items-center gap-2 text-[13px]">
+            <span className="text-ink-faint">Sanjeevani</span>
+            <span className="text-ink-faint">/</span>
+            <span className="font-medium text-ink">{current?.label ?? "Overview"}</span>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {pendingApprovalsCount > 0 && (
+              <Link
+                href="/"
+                className="flex items-center gap-1.5 rounded-md bg-critical/10 px-2 py-1 text-[11px] font-medium text-critical transition-colors duration-100 hover:bg-critical/15"
+              >
+                <Activity size={12} />
+                {pendingApprovalsCount} awaiting approval
+              </Link>
+            )}
+            <div className="flex items-center gap-2 text-[12px] text-ink-muted">
+              <span className="flex h-5 w-5 items-center justify-center rounded-sm bg-surface-2 text-[10px] font-semibold text-ink">
+                RK
               </span>
               Rajesh Kumar
             </div>
           </div>
         </header>
 
-        <AnimatePresence mode="wait">
-          <motion.main
-            key={pathname}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
-            className="mx-auto w-full max-w-[1500px] flex-1 px-8 pt-2 pb-10"
-          >
-            {children}
-          </motion.main>
-        </AnimatePresence>
+        <main key={pathname} className="animate-fade-in mx-auto w-full max-w-[1600px] flex-1 px-6 py-5">
+          {children}
+        </main>
       </div>
     </div>
   );

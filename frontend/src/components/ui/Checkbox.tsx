@@ -27,7 +27,7 @@ export default function Checkbox({ checked, indeterminate, onChange, disabled, c
       disabled={disabled}
       onChange={onChange}
       className={clsx(
-        "h-4 w-4 rounded-md border-white/20 bg-white/5 accent-accent cursor-pointer disabled:cursor-not-allowed disabled:opacity-40",
+        "h-4 w-4 rounded-sm border border-line-strong bg-surface-2 accent-accent cursor-pointer disabled:cursor-not-allowed disabled:opacity-40",
         className
       )}
       {...props}

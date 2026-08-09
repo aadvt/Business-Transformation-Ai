@@ -17,12 +17,12 @@ export default function Toast({ title, subtitle, onClose, timeout = 6000 }: Toas
   }, [onClose, timeout]);
 
   return (
-    <div className="fixed top-20 right-6 z-[9000] max-w-md glass-panel rounded-2xl ring-1 ring-positive/30 shadow-2xl shadow-black/60 animate-fade-in border-l-4 border-l-positive">
-      <div className="flex items-start gap-3 p-4">
-        <CheckCircle2 size={20} className="mt-0.5 shrink-0 text-positive" />
+    <div className="fixed top-20 right-6 z-[9000] max-w-md panel animate-fade-in border-l-2 border-l-success">
+      <div className="flex items-start gap-3 p-3">
+        <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-success" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-ink">{title}</p>
-          {subtitle && <p className="mt-1 text-xs text-ink-muted">{subtitle}</p>}
+          <p className="text-[13px] font-semibold text-ink">{title}</p>
+          {subtitle && <p className="mt-1 text-[12px] text-ink-muted">{subtitle}</p>}
         </div>
         <button type="button" onClick={onClose} className="cursor-pointer text-ink-faint hover:text-ink">
           <X size={16} />

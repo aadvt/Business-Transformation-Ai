@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import * as THREE from "three";
-import { motion } from "framer-motion";
 import { useDisruptions, useVendors } from "@/lib/queries";
 import { isFailedStage, isTerminalStage } from "@/lib/types";
 import type { DisruptionStage, DisruptionSummary, Vendor } from "@/lib/types";
@@ -21,46 +20,38 @@ const MAP_ZOOM = 4.3;
 type SeverityTier = "critical" | "elevated" | "moderate";
 
 const SEVERITY_COLOR: Record<SeverityTier, number> = {
-  critical: 0xff5d70,
-  elevated: 0xe8a33d,
-  moderate: 0x62b6f5,
+  critical: 0xd8484d,
+  elevated: 0xcf9a37,
+  moderate: 0x4d80b8,
 };
 
 const SEVERITY_HEX: Record<SeverityTier, string> = {
-  critical: "#ff5d70",
-  elevated: "#e8a33d",
-  moderate: "#62b6f5",
+  critical: "#d8484d",
+  elevated: "#cf9a37",
+  moderate: "#4d80b8",
 };
 
-// Higher severity = faster flow + more urgent pulse.
+// Higher severity = faster flow along the arc.
 const SEVERITY_SPEED: Record<SeverityTier, number> = {
   critical: 0.00042,
   elevated: 0.0003,
   moderate: 0.00022,
 };
 
-const PLANT_COLOR = 0xf7c163;
+const PLANT_COLOR = 0xcf9a37;
+const OUTLINE_COLOR = 0x0a0b0d;
 
-// All sizes are in Mercator units (the whole world is 1.0 wide), so these
-// are deliberately tiny — see mercator() below. Scaled so a vendor core
-// reads as a city dot on the map rather than a landmass; the halo/glow
-// shells and beams are scaled with it so the proportions hold.
-const NODE_CORE_RADIUS = 0.00018;
-const NODE_GLOW_RADIUS = 0.00048;
-const NODE_HALO_INNER = 0.00037;
-const NODE_HALO_OUTER = 0.00063;
-const PLANT_CORE_RADIUS = 0.0003;
-const PLANT_RING_RADIUS = 0.00063;
-const PLANT_GLOW_RADIUS = 0.00087;
-const PARTICLE_CORE_RADIUS = 0.00008;
-const PARTICLE_HALO_RADIUS = 0.00021;
-// Edges shrink less than the nodes — at 1/3 the arcs stop reading as flow.
-const EDGE_TUBE_RADIUS = 0.000055;
-const BEAM_RADIUS = 0.000055;
+// Mercator units — the whole world is 1.0 wide, so these are deliberately
+// tiny. Markers are flat discs sized to read as city dots.
+const NODE_RADIUS = 0.0002;
+const NODE_OUTLINE_SCALE = 1.45;
+const PLANT_RADIUS = 0.00032;
+const PARTICLE_RADIUS = 0.00009;
+const EDGE_TUBE_RADIUS = 0.00005;
+const PULSE_RING_INNER = 0.00034;
+const PULSE_RING_OUTER = 0.00042;
 
 const ARC_PEAK_ALTITUDE_M = 190000;
-const BEAM_HEIGHT = 0.0017;
-const PLANT_BEAM_HEIGHT = 0.0031;
 const PARTICLES_PER_EDGE = 4;
 const PULSE_RING_PERIOD_MS = 2600;
 
@@ -86,102 +77,24 @@ function hslToHex(h: number, s: number, l: number): number {
 
 function reliabilityColor(score: number): number {
   const hue = Math.max(0, Math.min(100, score)) * 1.2; // 0 (red) -> 120 (green)
-  return hslToHex(hue, 65, 55);
+  return hslToHex(hue, 55, 52);
 }
 
 function mercator(lng: number, lat: number, altitude = 0) {
   return mapboxgl.MercatorCoordinate.fromLngLat({ lng, lat }, altitude);
 }
 
-/** Rim-light (fresnel) shader — brightest where the surface turns away from
- *  the camera, which is what reads as a soft volumetric halo rather than a
- *  flat translucent ball. Needs the real camera position, which Mapbox
- *  exposes via getFreeCameraOptions().position (updated per frame in
- *  render()) — three.js's own camera matrices are bypassed here because the
- *  projection matrix is handed to us wholesale by Mapbox. */
-const GLOW_VERTEX = /* glsl */ `
-  varying vec3 vNormalW;
-  varying vec3 vWorldPos;
-  void main() {
-    vNormalW = normalize(normalMatrix * normal);
-    vWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-const GLOW_FRAGMENT = /* glsl */ `
-  uniform vec3 uColor;
-  uniform vec3 uCameraPos;
-  uniform float uIntensity;
-  uniform float uPower;
-  varying vec3 vNormalW;
-  varying vec3 vWorldPos;
-  void main() {
-    vec3 viewDir = normalize(uCameraPos - vWorldPos);
-    float fres = pow(1.0 - abs(dot(viewDir, normalize(vNormalW))), uPower);
-    gl_FragColor = vec4(uColor, clamp(fres * uIntensity, 0.0, 1.0));
-  }
-`;
-
-function createGlowMaterial(color: number, intensity: number, power: number): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uColor: { value: new THREE.Color(color) },
-      uCameraPos: { value: new THREE.Vector3() },
-      uIntensity: { value: intensity },
-      uPower: { value: power },
-    },
-    vertexShader: GLOW_VERTEX,
-    fragmentShader: GLOW_FRAGMENT,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    side: THREE.BackSide,
-  });
-}
-
-/** Vertical light column so a node still reads at a shallow camera pitch,
- *  fading out with height. UV.y runs 0 (base) -> 1 (top) on a cylinder. */
-const BEAM_FRAGMENT = /* glsl */ `
-  uniform vec3 uColor;
-  uniform float uIntensity;
-  varying vec2 vUvB;
-  void main() {
-    float a = pow(1.0 - vUvB.y, 2.2) * uIntensity;
-    gl_FragColor = vec4(uColor, a);
-  }
-`;
-
-const BEAM_VERTEX = /* glsl */ `
-  varying vec2 vUvB;
-  void main() {
-    vUvB = uv;
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-  }
-`;
-
-function createBeamMaterial(color: number, intensity: number): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      uColor: { value: new THREE.Color(color) },
-      uIntensity: { value: intensity },
-    },
-    vertexShader: BEAM_VERTEX,
-    fragmentShader: BEAM_FRAGMENT,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
+/** Flat, unlit fill. Everything in this scene is a solid colour on purpose —
+ *  shaded 3D volumes read as heavy blobs the moment the camera moves, where
+ *  flat markers stay legible at any pitch or bearing. */
+function flatMaterial(color: number, opacity = 1): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    color,
+    transparent: opacity < 1,
+    opacity,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
-}
-
-/** Cylinder geometry is Y-up and origin-centred; Mercator's up axis is +Z,
- *  so translate the base to the origin, then swing Y onto Z. */
-function makeBeamGeometry(radius: number, height: number): THREE.CylinderGeometry {
-  const geom = new THREE.CylinderGeometry(radius * 0.35, radius, height, 12, 1, true);
-  geom.translate(0, height / 2, 0);
-  geom.rotateX(Math.PI / 2);
-  return geom;
 }
 
 function disposeObject3D(root: THREE.Object3D) {
@@ -209,13 +122,6 @@ interface PulseRing {
   maxScale: number;
 }
 
-interface NodeAnim {
-  glowMaterial: THREE.ShaderMaterial;
-  baseIntensity: number;
-  phase: number;
-  live: boolean;
-}
-
 export default function NetworkMap() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
@@ -229,10 +135,7 @@ export default function NetworkMap() {
   const vendors = useMemo(() => vendorsData?.items ?? [], [vendorsData]);
   const disruptions = useMemo(() => disruptionsData?.items ?? [], [disruptionsData]);
 
-  const liveCount = useMemo(
-    () => disruptions.filter((d) => isLiveStage(d.stage)).length,
-    [disruptions]
-  );
+  const liveCount = useMemo(() => disruptions.filter((d) => isLiveStage(d.stage)).length, [disruptions]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !MAPBOX_TOKEN) return;
@@ -243,42 +146,29 @@ export default function NetworkMap() {
       style: "mapbox://styles/mapbox/dark-v11",
       center: MAP_CENTER,
       zoom: MAP_ZOOM,
-      pitch: 52,
-      bearing: -12,
+      pitch: 40,
+      bearing: 0,
       antialias: true,
       attributionControl: false,
     });
     mapRef.current = map;
     map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "top-right");
 
-    const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 18 });
+    const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 14 });
     popup.addClassName("sanjeevani-popup");
 
     const scene = new THREE.Scene();
     const camera = new THREE.Camera();
     let renderer: THREE.WebGLRenderer | null = null;
 
-    // Lights are added once and never cleared; only contentGroup is rebuilt
-    // when the underlying vendor/disruption data changes.
-    const lightRig = new THREE.Group();
-    lightRig.add(new THREE.AmbientLight(0xffffff, 1.15));
-    const keyLight = new THREE.DirectionalLight(0xfff0d8, 2.1);
-    keyLight.position.set(0.6, 0.2, 1);
-    lightRig.add(keyLight);
-    const rimLight = new THREE.DirectionalLight(0x6fa8ff, 1.3);
-    rimLight.position.set(-0.7, -0.5, 0.4);
-    lightRig.add(rimLight);
-    scene.add(lightRig);
-
     const contentGroup = new THREE.Group();
     scene.add(contentGroup);
 
     const edges: EdgeAnim[] = [];
     const pulseRings: PulseRing[] = [];
-    const nodeAnims: NodeAnim[] = [];
-    const glowMaterials: THREE.ShaderMaterial[] = [];
-    let plantRing: THREE.Mesh | null = null;
-    let plantCore: THREE.Mesh | null = null;
+    // Markers are flat discs turned to face the camera every frame, so they
+    // stay perfect circles instead of foreshortening into slivers on tilt.
+    const billboards: THREE.Object3D[] = [];
     let rafId: number | null = null;
     const cameraPos = new THREE.Vector3();
 
@@ -293,13 +183,10 @@ export default function NetworkMap() {
       render(_gl, matrixArray) {
         if (!renderer) return;
 
-        // Feed the real camera position to every fresnel material — without
-        // it the rim light is computed against the Mercator origin and the
-        // glow sits on the wrong side of each object.
         const free = map.getFreeCameraOptions();
         if (free.position) {
           cameraPos.set(free.position.x, free.position.y, free.position.z);
-          for (const mat of glowMaterials) mat.uniforms.uCameraPos.value.copy(cameraPos);
+          for (const b of billboards) b.lookAt(cameraPos);
         }
 
         camera.projectionMatrix = new THREE.Matrix4().fromArray(matrixArray);
@@ -308,84 +195,66 @@ export default function NetworkMap() {
       },
     };
 
-    function addGlow(mesh: THREE.Mesh, material: THREE.ShaderMaterial) {
-      glowMaterials.push(material);
+    /** A solid disc with a dark outline ring behind it — the outline is what
+     *  keeps the marker readable over both light coastlines and dark ocean. */
+    function addMarker(at: THREE.Vector3, radius: number, color: number, renderOrder: number) {
+      const group = new THREE.Group();
+      group.position.copy(at);
+
+      const outline = new THREE.Mesh(
+        new THREE.CircleGeometry(radius * NODE_OUTLINE_SCALE, 32),
+        flatMaterial(OUTLINE_COLOR, 0.85)
+      );
+      outline.renderOrder = renderOrder;
+      group.add(outline);
+
+      const fill = new THREE.Mesh(new THREE.CircleGeometry(radius, 32), flatMaterial(color));
+      fill.position.z = 0.0000002; // hairline lift so the fill always wins the depth test
+      fill.renderOrder = renderOrder + 1;
+      group.add(fill);
+
+      contentGroup.add(group);
+      billboards.push(group);
+    }
+
+    function addGroundPulse(at: THREE.Vector3, color: number, phase: number, maxScale: number) {
+      const material = flatMaterial(color, 0);
+      const mesh = new THREE.Mesh(new THREE.RingGeometry(PULSE_RING_INNER, PULSE_RING_OUTER, 48), material);
+      mesh.position.copy(at);
       contentGroup.add(mesh);
+      pulseRings.push({ mesh, material, phase, maxScale });
     }
 
     function buildPlant() {
       const pos = mercator(CHAKAN_PLANT.lng, CHAKAN_PLANT.lat);
       const at = new THREE.Vector3(pos.x, pos.y, pos.z);
 
-      const core = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(PLANT_CORE_RADIUS, 1),
-        new THREE.MeshStandardMaterial({
-          color: PLANT_COLOR,
-          emissive: new THREE.Color(PLANT_COLOR),
-          emissiveIntensity: 0.85,
-          roughness: 0.28,
-          metalness: 0.65,
-          flatShading: true,
-        })
+      // Square marker rotated 45°, so the hub is distinguishable from the
+      // round vendor dots by silhouette alone rather than only by colour.
+      const group = new THREE.Group();
+      group.position.copy(at);
+
+      const outline = new THREE.Mesh(
+        new THREE.PlaneGeometry(PLANT_RADIUS * 2.5, PLANT_RADIUS * 2.5),
+        flatMaterial(OUTLINE_COLOR, 0.85)
       );
-      core.position.copy(at);
-      contentGroup.add(core);
-      plantCore = core;
+      outline.rotation.z = Math.PI / 4;
+      outline.renderOrder = 10;
+      group.add(outline);
 
-      // Orbiting torus — the only rotating element, so the hub reads as
-      // "active" even when no disruption edges are live.
-      const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(PLANT_RING_RADIUS, PLANT_RING_RADIUS * 0.055, 10, 64),
-        new THREE.MeshBasicMaterial({ color: PLANT_COLOR, transparent: true, opacity: 0.55 })
+      const fill = new THREE.Mesh(
+        new THREE.PlaneGeometry(PLANT_RADIUS * 1.8, PLANT_RADIUS * 1.8),
+        flatMaterial(PLANT_COLOR)
       );
-      ring.position.copy(at);
-      contentGroup.add(ring);
-      plantRing = ring;
+      fill.rotation.z = Math.PI / 4;
+      fill.position.z = 0.0000002;
+      fill.renderOrder = 11;
+      group.add(fill);
 
-      const glowMat = createGlowMaterial(PLANT_COLOR, 1.15, 2.4);
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(PLANT_GLOW_RADIUS, 24, 24), glowMat);
-      glow.position.copy(at);
-      addGlow(glow, glowMat);
+      contentGroup.add(group);
+      billboards.push(group);
 
-      const beam = new THREE.Mesh(
-        makeBeamGeometry(BEAM_RADIUS * 1.5, PLANT_BEAM_HEIGHT),
-        createBeamMaterial(PLANT_COLOR, 0.5)
-      );
-      beam.position.copy(at);
-      contentGroup.add(beam);
-
-      const halo = new THREE.Mesh(
-        new THREE.RingGeometry(PLANT_RING_RADIUS * 1.1, PLANT_RING_RADIUS * 1.5, 64),
-        new THREE.MeshBasicMaterial({
-          color: PLANT_COLOR,
-          transparent: true,
-          opacity: 0.2,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      halo.position.copy(at);
-      contentGroup.add(halo);
-
-      // Two rings out of phase so the hub emits a continuous "radar" sweep.
-      for (let i = 0; i < 2; i++) {
-        const ringMat = new THREE.MeshBasicMaterial({
-          color: PLANT_COLOR,
-          transparent: true,
-          opacity: 0,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        });
-        const pulse = new THREE.Mesh(
-          new THREE.RingGeometry(PLANT_RING_RADIUS * 0.9, PLANT_RING_RADIUS * 1.02, 64),
-          ringMat
-        );
-        pulse.position.copy(at);
-        contentGroup.add(pulse);
-        pulseRings.push({ mesh: pulse, material: ringMat, phase: i / 2, maxScale: 5.5 });
-      }
+      for (let i = 0; i < 2; i++) addGroundPulse(at, PLANT_COLOR, i / 2, 6);
 
       return at;
     }
@@ -393,78 +262,21 @@ export default function NetworkMap() {
     function buildVendor(vendor: Vendor, plantAt: THREE.Vector3) {
       const pos = mercator(vendor.lng, vendor.lat);
       const at = new THREE.Vector3(pos.x, pos.y, pos.z);
-      const nodeColor = reliabilityColor(vendor.reliability_score_0_100);
 
       const disruption = disruptionsRef.current.find((d) => d.vendor.id === vendor.id && isLiveStage(d.stage));
       const severity = disruption ? severityForExposurePaise(disruption.exposure_total_paise) : null;
-      const accentColor = severity ? SEVERITY_COLOR[severity] : nodeColor;
 
-      // Dues nudge the core size so a heavier payable reads as a bigger node.
-      const duesFactor = Math.min(vendor.dues_paise / 1_000_000_00, 1);
-      const coreRadius = NODE_CORE_RADIUS * (0.85 + duesFactor * 0.5);
+      // Undisrupted vendors are coloured by reliability; a live disruption
+      // overrides that with its severity colour, since that is the thing an
+      // operator needs to spot first.
+      const color = severity ? SEVERITY_COLOR[severity] : reliabilityColor(vendor.reliability_score_0_100);
 
-      const core = new THREE.Mesh(
-        new THREE.SphereGeometry(coreRadius, 28, 28),
-        new THREE.MeshStandardMaterial({
-          color: nodeColor,
-          emissive: new THREE.Color(nodeColor),
-          emissiveIntensity: 0.55,
-          roughness: 0.25,
-          metalness: 0.5,
-        })
-      );
-      core.position.copy(at);
-      contentGroup.add(core);
-
-      const glowMat = createGlowMaterial(accentColor, disruption ? 1.25 : 0.7, 2.8);
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(NODE_GLOW_RADIUS, 22, 22), glowMat);
-      glow.position.copy(at);
-      addGlow(glow, glowMat);
-      nodeAnims.push({
-        glowMaterial: glowMat,
-        baseIntensity: disruption ? 1.25 : 0.7,
-        phase: Math.random(),
-        live: Boolean(disruption),
-      });
-
-      const halo = new THREE.Mesh(
-        new THREE.RingGeometry(NODE_HALO_INNER, NODE_HALO_OUTER, 48),
-        new THREE.MeshBasicMaterial({
-          color: accentColor,
-          transparent: true,
-          opacity: disruption ? 0.35 : 0.16,
-          side: THREE.DoubleSide,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        })
-      );
-      halo.position.copy(at);
-      contentGroup.add(halo);
-
-      const beam = new THREE.Mesh(
-        makeBeamGeometry(BEAM_RADIUS, BEAM_HEIGHT),
-        createBeamMaterial(accentColor, disruption ? 0.45 : 0.22)
-      );
-      beam.position.copy(at);
-      contentGroup.add(beam);
+      addMarker(at, NODE_RADIUS, color, 20);
 
       if (!disruption || !severity) return;
 
-      // Expanding ground ring, one per disrupted vendor.
-      const ringMat = new THREE.MeshBasicMaterial({
-        color: accentColor,
-        transparent: true,
-        opacity: 0,
-        side: THREE.DoubleSide,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      const pulse = new THREE.Mesh(new THREE.RingGeometry(NODE_HALO_INNER, NODE_HALO_INNER * 1.16, 48), ringMat);
-      pulse.position.copy(at);
-      contentGroup.add(pulse);
-      pulseRings.push({ mesh: pulse, material: ringMat, phase: Math.random(), maxScale: 4 });
-
-      buildEdge(plantAt, at, vendor, accentColor, severity);
+      addGroundPulse(at, SEVERITY_COLOR[severity], Math.random(), 4);
+      buildEdge(plantAt, at, vendor, SEVERITY_COLOR[severity], severity);
     }
 
     function buildEdge(
@@ -482,38 +294,19 @@ export default function NetworkMap() {
       const curve = new THREE.QuadraticBezierCurve3(from, mid, to);
 
       const tube = new THREE.Mesh(
-        new THREE.TubeGeometry(curve, 72, EDGE_TUBE_RADIUS, 8, false),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5 })
+        new THREE.TubeGeometry(curve, 72, EDGE_TUBE_RADIUS, 6, false),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false })
       );
       contentGroup.add(tube);
-
-      const sheathMat = createGlowMaterial(color, 0.75, 2.0);
-      const sheath = new THREE.Mesh(
-        new THREE.TubeGeometry(curve, 72, EDGE_TUBE_RADIUS * 3.4, 8, false),
-        sheathMat
-      );
-      addGlow(sheath, sheathMat);
 
       const particles: THREE.Object3D[] = [];
       const offsets: number[] = [];
       for (let i = 0; i < PARTICLES_PER_EDGE; i++) {
-        const comet = new THREE.Group();
-        comet.add(
-          new THREE.Mesh(
-            new THREE.SphereGeometry(PARTICLE_CORE_RADIUS, 10, 10),
-            new THREE.MeshBasicMaterial({ color: 0xffffff })
-          )
-        );
-        const haloMat = new THREE.MeshBasicMaterial({
-          color,
-          transparent: true,
-          opacity: 0.55,
-          blending: THREE.AdditiveBlending,
-          depthWrite: false,
-        });
-        comet.add(new THREE.Mesh(new THREE.SphereGeometry(PARTICLE_HALO_RADIUS, 12, 12), haloMat));
-        contentGroup.add(comet);
-        particles.push(comet);
+        const dot = new THREE.Mesh(new THREE.CircleGeometry(PARTICLE_RADIUS, 16), flatMaterial(0xffffff));
+        dot.renderOrder = 30;
+        contentGroup.add(dot);
+        billboards.push(dot);
+        particles.push(dot);
         offsets.push(i / PARTICLES_PER_EDGE);
       }
 
@@ -528,10 +321,7 @@ export default function NetworkMap() {
       }
       edges.length = 0;
       pulseRings.length = 0;
-      nodeAnims.length = 0;
-      glowMaterials.length = 0;
-      plantRing = null;
-      plantCore = null;
+      billboards.length = 0;
 
       const plantAt = buildPlant();
       for (const vendor of vendorsRef.current) buildVendor(vendor, plantAt);
@@ -557,26 +347,10 @@ export default function NetworkMap() {
         }
 
         for (const ring of pulseRings) {
-          const t = ((elapsed / PULSE_RING_PERIOD_MS + ring.phase) % 1 + 1) % 1;
+          const t = (((elapsed / PULSE_RING_PERIOD_MS + ring.phase) % 1) + 1) % 1;
           const scale = 1 + t * (ring.maxScale - 1);
           ring.mesh.scale.set(scale, scale, scale);
-          ring.material.opacity = 0.42 * (1 - t) * (1 - t);
-        }
-
-        for (const node of nodeAnims) {
-          const speed = node.live ? 0.0026 : 0.0012;
-          const swing = node.live ? 0.4 : 0.18;
-          const wave = Math.sin(elapsed * speed + node.phase * Math.PI * 2);
-          node.glowMaterial.uniforms.uIntensity.value = node.baseIntensity * (1 + wave * swing);
-        }
-
-        if (plantRing) {
-          plantRing.rotation.z += dt * 0.0009;
-          plantRing.rotation.x = Math.PI * 0.28 + Math.sin(elapsed * 0.0005) * 0.22;
-        }
-        if (plantCore) {
-          plantCore.rotation.z += dt * 0.0004;
-          plantCore.rotation.y += dt * 0.0002;
+          ring.material.opacity = 0.38 * (1 - t) * (1 - t);
         }
 
         map.triggerRepaint();
@@ -591,7 +365,7 @@ export default function NetworkMap() {
         const point = map.project([vendor.lng, vendor.lat]);
         const dist = Math.hypot(point.x - e.point.x, point.y - e.point.y);
         // Screen-space, so it stays a comfortable target even though the
-        // 3D dots are deliberately small.
+        // markers are deliberately small.
         if (dist < 15 && (!closest || dist < closest.dist)) closest = { vendor, dist };
       }
 
@@ -607,20 +381,20 @@ export default function NetworkMap() {
       const severity = disruption ? severityForExposurePaise(disruption.exposure_total_paise) : null;
 
       const html = `
-        <div style="min-width:210px">
-          <div style="font-weight:650;font-size:13px;letter-spacing:-0.01em;margin-bottom:3px;">${vendor.name}</div>
-          <div style="font-size:11px;opacity:0.62;margin-bottom:9px;">${vendor.city}, ${vendor.state}</div>
-          <div style="display:flex;gap:14px;font-size:11px;margin-bottom:${disruption ? "9px" : "0"};">
+        <div style="min-width:200px">
+          <div style="font-weight:600;font-size:12px;margin-bottom:2px;">${vendor.name}</div>
+          <div style="font-size:11px;opacity:0.6;margin-bottom:8px;">${vendor.city}, ${vendor.state}</div>
+          <div style="display:flex;gap:12px;font-size:11px;">
             <div><div style="opacity:0.55;">Reliability</div><div style="font-weight:600;">${vendor.reliability_score_0_100}%</div></div>
             <div><div style="opacity:0.55;">On-time</div><div style="font-weight:600;">${Math.round(vendor.on_time_rate * 100)}%</div></div>
             <div><div style="opacity:0.55;">Dues</div><div style="font-weight:600;">${vendor.dues_display}</div></div>
           </div>
           ${
             disruption && severity
-              ? `<div style="border-top:1px solid rgba(255,255,255,0.1);padding-top:8px;">
-                   <div style="display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${SEVERITY_HEX[severity]};border:1px solid ${SEVERITY_HEX[severity]}55;border-radius:99px;padding:1px 7px;margin-bottom:5px;">${severity}</div>
+              ? `<div style="border-top:1px solid rgba(255,255,255,0.09);margin-top:8px;padding-top:7px;">
+                   <div style="display:inline-block;font-size:9px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${SEVERITY_HEX[severity]};margin-bottom:4px;">${severity}</div>
                    <div style="font-size:11px;line-height:1.45;">${disruption.headline}</div>
-                   <div style="font-size:11px;font-weight:650;margin-top:5px;color:${SEVERITY_HEX[severity]};">${disruption.exposure_total_display} exposure</div>
+                   <div style="font-size:11px;font-weight:600;margin-top:4px;color:${SEVERITY_HEX[severity]};">${disruption.exposure_total_display} exposure</div>
                  </div>`
               : ``
           }
@@ -656,71 +430,50 @@ export default function NetworkMap() {
 
   if (!MAPBOX_TOKEN) {
     return (
-      <div className="glass-panel flex h-full items-center justify-center rounded-2xl text-sm text-ink-muted">
+      <div className="panel flex h-full items-center justify-center text-[13px] text-ink-faint">
         NEXT_PUBLIC_MAPBOX_TOKEN is not set.
       </div>
     );
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.985 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className="glass-panel relative h-full overflow-hidden rounded-2xl"
-    >
+    <div className="panel-flush relative h-full">
       <div ref={containerRef} className="h-full w-full" />
 
-      {/* Vignette so the map edges melt into the page instead of hard-cropping */}
-      <div
-        className="pointer-events-none absolute inset-0 rounded-2xl"
-        style={{ boxShadow: "inset 0 0 90px 24px rgba(7,9,16,0.75)" }}
-      />
-
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.35, duration: 0.5 }}
-        className="glass pointer-events-none absolute top-4 left-4 rounded-2xl px-4 py-3"
-      >
-        <p className="text-[0.625rem] font-semibold tracking-[0.14em] text-ink-faint uppercase">Supply network</p>
-        <p className="mt-1 text-2xl leading-none font-semibold text-ink tabular-money">{vendors.length}</p>
-        <p className="mt-1 text-[0.6875rem] text-ink-muted">
-          vendors · <span className="text-accent-strong">{liveCount} live</span>
+      <div className="pointer-events-none absolute top-3 left-3 rounded-md border border-line bg-surface/95 px-3 py-2">
+        <span className="eyebrow">Supply network</span>
+        <p className="numeric mt-1 text-[20px] leading-none font-medium text-ink" data-numeric>
+          {vendors.length}
         </p>
-      </motion.div>
+        <p className="mt-1 text-[11px] text-ink-muted">
+          vendors · <span className="text-accent">{liveCount} live</span>
+        </p>
+      </div>
 
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.45, duration: 0.5 }}
-        className="glass pointer-events-none absolute bottom-4 left-4 rounded-2xl px-4 py-3 text-xs text-ink-muted"
-      >
-        <p className="mb-2.5 text-[0.625rem] font-semibold tracking-[0.14em] text-ink uppercase">Legend</p>
-        {(["critical", "elevated", "moderate"] as SeverityTier[]).map((tier) => (
-          <div key={tier} className="mb-1.5 flex items-center gap-2.5">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: SEVERITY_HEX[tier], boxShadow: `0 0 9px ${SEVERITY_HEX[tier]}` }}
-            />
-            <span className="capitalize">{tier}</span>
-            <span className="text-ink-faint">
-              {tier === "critical" ? "≥ ₹1Cr" : tier === "elevated" ? "≥ ₹25L" : "< ₹25L"}
-            </span>
+      <div className="pointer-events-none absolute bottom-3 left-3 rounded-md border border-line bg-surface/95 px-3 py-2.5">
+        <span className="eyebrow">Severity</span>
+        <div className="mt-1.5 space-y-1">
+          {(["critical", "elevated", "moderate"] as SeverityTier[]).map((tier) => (
+            <div key={tier} className="flex items-center gap-2 text-[11px] text-ink-muted">
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: SEVERITY_HEX[tier] }} />
+              <span className="w-14 capitalize">{tier}</span>
+              <span className="numeric text-ink-faint">
+                {tier === "critical" ? "≥ ₹1Cr" : tier === "elevated" ? "≥ ₹25L" : "< ₹25L"}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 space-y-1 border-t border-line pt-2">
+          <div className="flex items-center gap-2 text-[11px] text-ink-muted">
+            <span className="h-1.5 w-1.5 rotate-45" style={{ background: "#cf9a37" }} />
+            Chakan plant
           </div>
-        ))}
-        <div className="mt-2.5 flex items-center gap-2.5 border-t border-white/10 pt-2.5">
-          <span
-            className="h-2 w-2 rotate-45"
-            style={{ background: "#f7c163", boxShadow: "0 0 9px #f7c163" }}
-          />
-          Chakan plant
+          <div className="flex items-center gap-2 text-[11px] text-ink-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-success" />
+            Vendor · reliability
+          </div>
         </div>
-        <div className="mt-1.5 flex items-center gap-2.5">
-          <span className="h-2 w-2 rounded-full bg-gradient-to-r from-rose-500 to-emerald-400" />
-          Vendor · reliability
-        </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }

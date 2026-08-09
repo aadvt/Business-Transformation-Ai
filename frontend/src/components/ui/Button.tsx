@@ -14,15 +14,15 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
-  primary: "bg-gradient-to-br from-accent to-[#d18f2c] text-[#1a1305] shadow-lg shadow-accent/30 hover:shadow-accent/50 hover:scale-105 disabled:bg-accent/40 disabled:text-[#1a1305]/60 disabled:shadow-none disabled:scale-100",
-  secondary: "glass text-ink hover:border-accent/40 disabled:opacity-40",
-  danger: "bg-alert/10 text-alert border border-alert/30 hover:bg-alert/20 disabled:opacity-40",
-  ghost: "bg-transparent text-ink-muted hover:bg-white/5 hover:text-ink disabled:opacity-40",
+  primary: "bg-accent text-accent-ink hover:bg-accent/90",
+  secondary: "bg-surface-2 text-ink border border-line hover:bg-surface-3 hover:border-line-strong",
+  danger: "bg-transparent text-critical border border-critical/40 hover:bg-critical/10",
+  ghost: "text-ink-muted hover:bg-surface-2 hover:text-ink",
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: "text-xs px-3 py-1.5 gap-1.5",
-  md: "text-sm px-4 py-2 gap-2",
+  sm: "text-xs px-2.5 py-1 gap-1.5",
+  md: "text-[13px] px-3 py-1.5 gap-2",
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
@@ -34,7 +34,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
       ref={ref}
       disabled={disabled}
       className={clsx(
-        "inline-flex items-center justify-center rounded-xl font-medium transition-all duration-200 cursor-pointer disabled:cursor-not-allowed active:scale-[0.97]",
+        "inline-flex items-center justify-center rounded-md font-medium transition-colors duration-100 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40",
         VARIANT_CLASSES[variant],
         SIZE_CLASSES[size],
         className

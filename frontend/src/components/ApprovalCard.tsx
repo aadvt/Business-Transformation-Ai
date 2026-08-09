@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { Check, CheckCircle2, ChevronDown, ChevronUp, Clock, IndianRupee, X } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 import type { Disruption } from "@/lib/types";
 import { formatTimeAgo } from "@/lib/format";
 import { useDecideApproval } from "@/lib/queries";
@@ -24,12 +23,7 @@ export default function ApprovalCard({ disruption }: { disruption: Disruption })
   }
 
   return (
-    <motion.div
-      className="glass-panel rounded-2xl border-l-2 border-l-accent p-5"
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-    >
+    <div className="panel p-4 border-l-2 border-l-accent">
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[0.95rem] font-semibold text-ink">{disruption.vendor.name}</span>
         <Badge tone="idle">{disruption.type.replace(/_/g, " ")}</Badge>
@@ -41,43 +35,36 @@ export default function ApprovalCard({ disruption }: { disruption: Disruption })
         <span className="inline-flex items-center gap-1">
           <Clock size={14} /> Detected {formatTimeAgo(disruption.detected_at)}
         </span>
-        <span className="inline-flex items-center gap-1 font-semibold text-accent-strong">
-          <IndianRupee size={14} /> <span className="tabular-money">{disruption.exposure.total_display}</span> exposure
+        <span className="inline-flex items-center gap-1 font-semibold text-accent">
+          <IndianRupee size={14} /> <span className="numeric">{disruption.exposure.total_display}</span> exposure
         </span>
       </div>
 
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="mb-2 inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[0.8125rem] font-semibold text-positive"
+        className="mb-2 inline-flex cursor-pointer items-center gap-1.5 border-none bg-transparent p-0 text-[0.8125rem] font-semibold text-success"
       >
         <CheckCircle2 size={16} />
         {verifiedCount} verified candidate{verifiedCount === 1 ? "" : "s"} found
         {expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
       </button>
 
-      <AnimatePresence>
-        {expanded && (
-          <motion.ul
-            className="mb-3 flex flex-col gap-1.5 overflow-hidden"
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-          >
-            {disruption.candidates.map((c) => (
-              <li
-                key={c.vendor_id}
-                className="glass-subtle rounded-xl px-2.5 py-1.5 text-[0.8125rem] flex items-center justify-between gap-2"
-              >
-                <span className="font-medium text-ink">{c.name}</span>
-                <span className="text-xs whitespace-nowrap text-ink-muted">
-                  ETA {c.quoted_lead_time_days}d &middot; match {(c.match_score * 100).toFixed(0)}%
-                </span>
-              </li>
-            ))}
-          </motion.ul>
-        )}
-      </AnimatePresence>
+      {expanded && (
+        <ul className="mb-3 flex flex-col gap-1.5">
+          {disruption.candidates.map((c) => (
+            <li
+              key={c.vendor_id}
+              className="bg-surface-2 rounded-md px-2.5 py-1.5 text-xs flex items-center justify-between gap-2"
+            >
+              <span className="font-medium text-ink">{c.name}</span>
+              <span className="numeric whitespace-nowrap text-ink-muted">
+                ETA {c.quoted_lead_time_days}d &middot; match {(c.match_score * 100).toFixed(0)}%
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Button
@@ -101,6 +88,6 @@ export default function ApprovalCard({ disruption }: { disruption: Disruption })
           See options
         </Button>
       </div>
-    </motion.div>
+    </div>
   );
 }

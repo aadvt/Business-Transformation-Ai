@@ -33,14 +33,14 @@ export default function WaterfallPage() {
   return (
     <div>
       <PageHeader
-        title="Live Pipeline"
-        subtitle="Sensing → Diagnosis → Sourcing → Negotiation → Governance → Settlement, tracked per disruption in real time."
+        title="Pipeline"
+        subtitle="Per-disruption progress through all six stages, and the live status of the agent that owns each one."
       />
 
-      <section className="mb-10">
+      <section className="mb-6">
         <SectionHeading count={agentsResponse?.agents.length}>Agent mesh</SectionHeading>
         {agentsLoading || !agentsResponse ? (
-          <Skeleton className="h-24" />
+          <Skeleton className="h-20" />
         ) : (
           <AgentStatusStrip agents={agentsResponse.agents} />
         )}
@@ -49,11 +49,11 @@ export default function WaterfallPage() {
       <section>
         <SectionHeading count={sorted.length}>Disruptions in flight</SectionHeading>
         {disruptionsLoading ? (
-          <Skeleton className="h-52" />
+          <Skeleton className="h-44" />
         ) : sorted.length === 0 ? (
           <EmptyState>Nothing in the pipeline right now.</EmptyState>
         ) : (
-          <div>
+          <div className="flex flex-col gap-3">
             {sorted.map((d) => (
               <WaterfallPipeline key={d.id} disruption={d} />
             ))}
