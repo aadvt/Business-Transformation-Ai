@@ -27,6 +27,11 @@ router = APIRouter(prefix="/api/v1/disruptions", tags=["simulate"], dependencies
 # scenario name promises.
 SCENARIOS: dict[str, tuple[str, str]] = {
     "delivery_delay_castings": ("Bharat Casting Industries", "overdue_delivery"),
+    # Phase 4b: CRS-2MM's seeded inventory trend is already below reorder_point
+    # by "now" (see app/seed.py) — TTM's zero-shot forecast picks this up via
+    # app.agents.detectors.ttm_forecast.stockout_risk_ttm, attributed to the
+    # vendor in SKU_VENDOR_HINTS. Falls back to a clear 422 if TTM didn't load.
+    "stockout_risk": ("Marudhar Steel Traders", "ttm_stockout_forecast"),
 }
 
 

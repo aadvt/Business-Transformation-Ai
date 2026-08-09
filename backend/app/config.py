@@ -86,6 +86,15 @@ class Settings(BaseSettings):
     verification_timeout_seconds: float = 5.0
     verification_cache_ttl_hours: int = 24
 
+    # --- TTM stockout-risk detector (Phase 4b) ---
+    # Instant kill switch if the model misbehaves close to demo time — no
+    # redeploy needed, just flip this and restart (or even hot-toggle if we
+    # ever expose it as a runtime setting).
+    enable_ttm_detector: bool = True
+    ttm_model_id: str = "ibm-granite/granite-timeseries-ttm-r2"
+    ttm_forecast_horizon: int = 96  # model's native prediction_length
+    ttm_context_length: int = 512  # model's native context_length
+
     # --- Transaction agent bridge ---
     # Settlement execute hands the batch off to the transaction-agent service
     # (../transaction-agent) as a best-effort side call — see

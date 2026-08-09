@@ -164,7 +164,8 @@ Two independent fallbacks, for two different failure modes:
 | Vendors, disruptions, dashboard, approvals, settlements, audit, negotiations | **Real** — backed by Neon Postgres (or sqlite fallback) |
 | `agents/status`, `metrics/demo` | **Mocked** — no table modeled for live agent status or demo metrics yet (Phase 3+) |
 | GSTIN validation | **Real** (offline) — structural + mod-36 checksum validation, see `app/services/gstin.py`. Does not call the live GST portal. |
-| `/forecast/{sku}` | **Real query, simple trend** — linear extrapolation over seeded inventory history; not the real TTM model (still STUB, see below) |
+| `/forecast/{sku}` | **Real TTM model** — zero-shot Granite TinyTimeMixer forecast over seeded inventory history; falls back to linear-trend extrapolation if TTM isn't loaded (see below) |
+| Sentinel's TTM stockout-risk detector | **Real** — additive detector, same model as above, feeds real disruptions with `detector_source=TTM_FORECAST` |
 | Audit log | **Real** — append-only, hash-chained, `verify_audit_chain()` catches tampering |
 | WebSocket `/api/v1/live` | **Real** connection + ring buffer + heartbeat; **scripted** event content in mock mode |
 | Idempotency on POST endpoints | **Real** — same `idempotency_key` always returns the identical cached response |
@@ -181,7 +182,7 @@ anyone opening this repo mid-hackathon knows what to trust without hitting the A
 | Granite Guardian (AI safety) | **STUB — surrogate mode** | The gate is live and discriminating, but **no `granite-guardian-*` model is available on this account's region/plan** (verified: `eu-de` `foundation_model_specs` lists 15 models, none of them Guardian). Risk scoring currently runs Guardian's risk definitions through `granite-4-h-small` instead. Every verdict carries `mode=LLM_SURROGATE` and `is_real_guardian=False`. **Do not present this as Granite Guardian.** Flips to real automatically if a Guardian model becomes available. |
 | Supermemory (vendor memory) | **STUB** | `memory_source` field models the concept; no real memory store wired |
 | Verification (GSTIN/Udyam checks) | **STUB (real offline logic)** | `app/services/gstin.py` does real structural+checksum validation; does not call the live GST portal |
-| TTM (Granite time-series forecasting) | **NOT YET WIRED** | `/forecast/{sku}` does real linear-trend extrapolation over real seeded data; `model` field reports `RULE_BASED` honestly. Good news for Phase 4: `ibm/granite-ttm-512-96-r2`, `-1024-96-r2` and `-1536-96-r2` **are** available on this account. |
+| TTM (Granite time-series forecasting) | **LIVE** | `ibm-granite/granite-timeseries-ttm-r2` runs a real zero-shot forecast (96-step horizon) over seeded `inventory_snapshots`, both as a Sentinel detector (`app/agents/detectors/ttm_forecast.py`) and behind `GET /forecast/{sku}`. Falls back to linear-trend extrapolation (`model="RULE_BASED"`) if the model isn't loaded — never 500s. Verify with `python scripts/smoke_ttm.py`. |
 | Orchestrate | **NOT YET WIRED** | No integration point exists yet |
 | Neon Postgres | **LIVE** | Pooled connection for app traffic, direct connection for seed/schema — see `CLAUDE.md` |
 
@@ -205,6 +206,23 @@ python scripts/smoke_guardian.py
 
 Both exit non-zero if the live call fails or degrades, so they work as a
 pre-demo check. `smoke_llm.py` exits 1 if the answer came from the stub.
+
+```bash
+python scripts/smoke_ttm.py
+# sku: CRS-2MM | model: granite-timeseries-ttm-r2 | forecast crosses reorder point in 1 hours | 15ms
+# TTM is LIVE.
+
+curl -X POST localhost:8000/api/v1/disruptions/simulate -d '{"scenario":"stockout_risk"}'
+curl -s localhost:8000/api/v1/disruptions/<id> | python -m json.tool
+# "detector_source": "TTM_FORECAST"  <- confirms this specific alert came from
+#                                        IBM's time-series model, not a rule
+```
+
+Model weights (`ibm-granite/granite-timeseries-ttm-r2`) must be present in the
+Hugging Face Hub cache (`~/.cache/huggingface/hub`) — pre-cached from Phase 0
+in this environment. `ENABLE_TTM_DETECTOR=false` disables the detector
+instantly (no redeploy) if it ever misbehaves close to demo time; `/forecast`
+degrades to `RULE_BASED` automatically either way.
 
 ## The model layer (`app/llm/`)
 

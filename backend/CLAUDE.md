@@ -5,6 +5,9 @@ re-litigate them. Read this before changing conventions.
 
 ## Phase
 
+**Phase 4b: TTM (Granite TinyTimeMixer) stockout-risk detection is live.**
+See "TTM detector" below. Phase 4a's agents/orchestrator remain in force.
+
 **Phase 4a: the three backend agents (Sentinel, Diagnosis, Sourcing) and the
 orchestrator are live.** See "Agents" and "Orchestrator" below. Phases 2/3's
 notes remain in force.
@@ -365,6 +368,71 @@ row is the arithmetic's defence, not a log line.
   once to pick up that vendor's golden-path signal, then runs the pipeline.
   Idempotent-ish: calling it again on an already-progressed disruption just
   reports its current stage rather than re-running the pipeline.
+
+## TTM detector (Phase 4b) — `app/agents/detectors/ttm_forecast.py`
+
+- **Purely additive to Phase 4a's Sentinel.** `sentinel.py` was not edited —
+  `ttm_forecast.py` imports `app.agents.sentinel` and appends
+  `stockout_risk_ttm` to the shared `DETECTORS` list as a module-level import
+  side effect. This only actually runs if something imports
+  `app.agents.detectors.ttm_forecast` — that import lives in `app/main.py`,
+  right next to the `start_background_load()` call. If you ever move or
+  remove that import, the detector silently stops being registered even
+  though the module still "exists" — check `app/main.py` first if TTM signals
+  stop appearing.
+- **Model loads once, on a worker thread, at startup — never per-request,
+  never blocking startup.** `start_background_load()` does
+  `asyncio.create_task(asyncio.to_thread(load_model))` and returns
+  immediately; the app accepts requests before the model finishes loading.
+  `TTM_AVAILABLE` (module global) is the single source of truth for "is it
+  ready" — `stockout_risk_ttm()` and `GET /forecast/{sku}` both check it and
+  degrade to nothing/`RULE_BASED` respectively rather than erroring.
+  `ENABLE_TTM_DETECTOR=false` is the instant kill switch (checked first, no
+  network/import cost either way).
+- **No formal SKU → supplying-vendor table exists.** `inventory_snapshots`
+  has no `vendor_id` column, but `Signal`/`DisruptionEvent` both require one.
+  `SKU_VENDOR_HINTS` is a hardcoded, documented mapping (kept in sync with
+  `app/seed.py`'s `INVENTORY_SKUS` and vendor list) used only to attribute a
+  stockout-risk signal to a vendor. If a SKU isn't in the map, the signal is
+  dropped with a logged warning rather than guessing or crashing. A real
+  vendor-SKU relationship table is the correct fix whenever Phase 5+ needs
+  this to generalize past the 10 seeded SKUs.
+- **Crossing detection is one pure function** — `find_projected_breach(forecast,
+  reorder_point)` — deliberately factored out of `run_forecast()` so it's
+  unit-testable with zero model, zero network, zero DB. It returns the first
+  forecast step at-or-below `reorder_point`; if the current on-hand value is
+  already below it (true for the seeded CRS-2MM series — see below), that's
+  index 0, an immediate breach, which is correct, not a bug.
+- **Exposure is honestly zero for TTM-only signals.** A stockout-risk signal
+  has no `affected_po_ids` (there's no PO to point at — the risk is about a
+  *future* order), so `compute_exposure()` correctly returns
+  `total_paise=0, confidence=0.0` for it: blocked_value and penalty both need
+  a PO, and neither exists yet. Same reasoning as always — the exposure
+  engine only reports what it can actually justify from data, never a filled-
+  in guess. If the pitch needs a nonzero number for this scenario, that's a
+  Diagnosis-agent enhancement (e.g. projected_shortfall × unit_price), not
+  something to fake here.
+- Golden path: `app/seed.py`'s CRS-2MM inventory series is a declining
+  ("ramp") trend that's already below `reorder_point` by "now" — this is
+  intentional (see Phase 2's seed notes), so TTM's forecast should show an
+  immediate/near-immediate breach for it. `POST /disruptions/simulate` with
+  `{"scenario": "stockout_risk"}` exercises this end to end; verify the
+  resulting disruption's `detector_source` reads `TTM_FORECAST`, not
+  `RULE_BASED` — that distinction is the whole point of this phase.
+- Benchmarked like every other agent call: `_record_run()` writes an
+  `agent_runs` row per SKU scanned (`agent="TTM_FORECAST_<sku>"`), with real
+  inference latency, even though this isn't an LLM call — reuses
+  `app.llm.runs.default_recorder()` rather than inventing a second mechanism.
+- **Install is real and heavy** (torch + transformers, several minutes):
+  `pip install "granite-tsfm[notebooks] @ git+https://github.com/ibm-granite/granite-tsfm.git"`.
+  On Windows, cloning that repo can fail with `Filename too long` (deeply
+  nested notebook fixtures) unless long paths are enabled for the clone —
+  use a process-local override rather than touching global git config:
+  `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.longpaths GIT_CONFIG_VALUE_0=true pip install ...`.
+  Model weights (`ibm-granite/granite-timeseries-ttm-r2`) must be pre-cached
+  in the Hugging Face Hub cache for this to work fully offline; a HEAD
+  request to huggingface.co still fires even when cached (freshness check,
+  not a re-download) — that's expected, not a bug.
 
 ## Schema drift note: `Vendor.lat`/`Vendor.lng`, `Organisation.lat`/`lng`
 

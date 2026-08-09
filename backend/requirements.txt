@@ -9,3 +9,9 @@ pytest==8.3.4
 pytest-asyncio==0.25.1
 sqlalchemy==2.0.36
 psycopg[binary]==3.2.3
+
+# --- Phase 4b: TTM (Granite TinyTimeMixer) stockout-risk detector ---
+# Pulls in torch + transformers — a real, multi-minute install. Model weights
+# (ibm-granite/granite-timeseries-ttm-r2) are expected pre-cached in the HF hub
+# cache (see README) — this only installs the code to load and run them.
+granite-tsfm[notebooks] @ git+https://github.com/ibm-granite/granite-tsfm.git
