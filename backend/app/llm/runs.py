@@ -103,7 +103,10 @@ class DbAgentRunRecorder:
 def default_recorder() -> AgentRunRecorder:
     from app.config import settings
 
-    if settings.use_mocks:
+    # use_mocks means "no DB at all"; llm_provider=stub means "no network at
+    # all" (this is what the test suite sets) — either one rules out opening a
+    # real Postgres connection just to log a call that didn't really happen.
+    if settings.use_mocks or settings.llm_provider == "stub":
         return NullAgentRunRecorder()
     return DbAgentRunRecorder()
 

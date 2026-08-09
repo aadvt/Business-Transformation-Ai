@@ -1,8 +1,9 @@
 from sqlalchemy.orm import Session
 
 from app.db.models import Approval as ApprovalRow, DisruptionEvent
+from app.orchestrator.engine import transition
 from app.schemas.disruptions import Approval, ApprovalDecisionResponse
-from app.schemas.enums import ApprovalDecision, ApprovalStatus, DisruptionStage
+from app.schemas.enums import ApprovalDecision, ApprovalStatus
 from app.schemas.money import to_iso, utc_now
 from app.services.audit import append_audit
 
@@ -12,9 +13,9 @@ _DECISION_TO_STATUS = {
     ApprovalDecision.REQUEST_OPTIONS: ApprovalStatus.OPTIONS_REQUESTED,
 }
 _DECISION_TO_STAGE = {
-    ApprovalDecision.APPROVE: DisruptionStage.APPROVED,
-    ApprovalDecision.REJECT: DisruptionStage.REJECTED,
-    ApprovalDecision.REQUEST_OPTIONS: DisruptionStage.SOURCING,
+    ApprovalDecision.APPROVE: "APPROVED",
+    ApprovalDecision.REJECT: "REJECTED",
+    ApprovalDecision.REQUEST_OPTIONS: "SOURCING",
 }
 
 
@@ -50,15 +51,19 @@ def decide_approval(
     approval.note = note
     approval.idempotency_key = idempotency_key
 
-    disruption.stage = _DECISION_TO_STAGE[decision]
-    if decision == ApprovalDecision.APPROVE:
-        disruption.approved_at = now
+    # The state machine (app.orchestrator.engine) is the sole authority on
+    # stage changes: AWAITING_APPROVAL -> {APPROVED, REJECTED, SOURCING} are
+    # all HUMAN_ONLY transitions, so this call raises IllegalTransitionError
+    # if anything ever tries to reach this code path with actor_type != HUMAN.
+    transition(
+        session, org_id, disruption, _DECISION_TO_STAGE[decision],
+        actor_type="HUMAN", actor=decided_by, note=note,
+    )
 
     append_audit(
         session, org_id=org_id, disruption_id=disruption.id, actor_type="HUMAN", actor=decided_by,
         action="APPROVAL_DECIDED", detail={"decision": decision, "channel": channel, "note": note}, at=now,
     )
-    session.flush()
+    session.commit()
 
-    response = ApprovalDecisionResponse(approval=_to_schema(approval), disruption_id=disruption.id, new_stage=disruption.stage)
-    return response, False
+    return ApprovalDecisionResponse(approval=_to_schema(approval), disruption_id=disruption.id, new_stage=disruption.stage), False

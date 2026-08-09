@@ -55,8 +55,12 @@ were given. If the evidence is thin, say so and pick UNKNOWN rather than guessin
 plausible-sounding cause.
 - Do not invent ticket numbers, dates, names, or quantities. Use only what appears in \
 the evidence.
-- The narrative is read by a procurement manager who needs to act on it. Two or three \
-sentences, plain English, no bullet points, no headings.
+- The narrative is read by a procurement manager who needs to act on it. ONE or at most \
+TWO short sentences, plain English, no bullet points, no headings.
+- Hard limit: the narrative field must be under 280 characters, including spaces and \
+punctuation. Count as you write. If you cannot fit everything in 280 characters, cut \
+detail rather than exceed the limit — a shorter accurate sentence beats a longer one \
+that gets truncated.
 - List the evidence items you actually relied on, quoting them closely enough that a \
 human can find them in the source record.
 """

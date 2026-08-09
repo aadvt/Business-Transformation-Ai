@@ -54,6 +54,38 @@ class Settings(BaseSettings):
     verification_api_key: str = ""
     orchestrate_api_key: str = ""
 
+    # --- Agents / orchestrator (Phase 4a) ---
+    demo_mode: bool = True  # gates POST /disruptions/simulate — never enable in a real deployment
+    sentinel_interval_seconds: int = 30  # background scheduler loop period; generous, this is a demo
+
+    # Sentinel detector thresholds
+    overdue_delivery_threshold_days: int = 2
+    vendor_silence_threshold_days: int = 10
+    quality_spike_lookback_days: int = 30
+    quality_spike_multiplier: float = 2.0  # rejection rate must exceed vendor baseline by this factor
+    price_shock_threshold_pct: float = 15.0  # quoted price this many % above trailing SKU median
+
+    # Exposure engine
+    daily_line_cost_paise: int = 2_000_000_00  # ₹20L/day, matches the Phase 1 narrative example
+
+    # Sourcing scoring weights (must sum to 1.0 — enforced by a test)
+    sourcing_weight_reliability: float = 0.35
+    sourcing_weight_lead_time: float = 0.25
+    sourcing_weight_price: float = 0.20
+    sourcing_weight_geography: float = 0.15
+    sourcing_weight_relationship: float = 0.05
+
+    # Guardrails — also exposed to the voice agent via GET /vendors/{id}/context
+    max_price_uplift_pct: float = 20.0
+    max_lead_time_days: int = 10
+    requires_human_above_paise: int = 50_000_000_00  # ₹5,00,00,000 — mandatory human review above this exposure
+
+    verification_provider: str = ""  # empty -> offline GSTIN/Udyam checksum only
+    verification_provider_url: str = ""
+    verification_provider_api_key: str = ""
+    verification_timeout_seconds: float = 5.0
+    verification_cache_ttl_hours: int = 24
+
     # --- Transaction agent bridge ---
     # Settlement execute hands the batch off to the transaction-agent service
     # (../transaction-agent) as a best-effort side call — see

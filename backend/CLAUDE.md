@@ -5,6 +5,10 @@ re-litigate them. Read this before changing conventions.
 
 ## Phase
 
+**Phase 4a: the three backend agents (Sentinel, Diagnosis, Sourcing) and the
+orchestrator are live.** See "Agents" and "Orchestrator" below. Phases 2/3's
+notes remain in force.
+
 **Phase 3: the model layer is live.** See "Model layer" below. Phase 2's
 persistence notes remain in force.
 
@@ -249,6 +253,134 @@ decorative logging.
   (inside Neon's ~5 minute scale-to-zero window) for the life of the process.
   Started/stopped in `app/main.py`'s lifespan hook, skipped entirely when
   `USE_MOCKS=true`.
+
+## Governing principle for agents (non-negotiable)
+
+**The LLM never produces a number that reaches the user.** All financial
+arithmetic is deterministic Python in `app/services/exposure.py` — pure
+functions, no DB, no I/O, fully unit-tested (`tests/test_exposure.py`). The
+LLM classifies into enums and writes prose explaining numbers Python already
+computed. If a judge asks "how did you get ₹6.2 lakh", open
+`app/services/exposure.py` and the `exposure_calcs.inputs` JSON column — that
+row is the arithmetic's defence, not a log line.
+
+## Agents (`app/agents/`)
+
+- `base.py` — `Agent` ABC. `run(ctx)` wraps every agent's `_execute(ctx)`:
+  times it, writes one `agent_runs` row (agent=self.name — a coarser trace
+  than the fine-grained rows the agent's own `llm.complete()`/`guardian.check()`
+  calls write under their own tags), writes one `audit_log` entry via
+  `append_audit`, and **never lets an exception escape** — a crash becomes
+  `AgentResult(status=ERROR, error=...)` after rolling back the session, so a
+  broken agent degrades the pipeline instead of 500ing the API.
+- **Agents never touch `disruption.stage`.** Only `app.orchestrator.engine.transition()`
+  does. This is what makes the state machine provably the sole authority — see
+  "Orchestrator" below. If you're tempted to set `.stage` inside an agent,
+  don't; call `transition()` from the orchestrator/pipeline layer instead.
+- `sentinel.py` — deterministic detectors run FIRST (`overdue_delivery`,
+  `vendor_silence`, `quality_spike`, `price_shock`, each a pure
+  `(session, org_id) -> list[Signal]` function), THEN one LLM call classifies
+  each new signal into a `DisruptionType` + 90-char headline. Dedup is by
+  `(vendor_id, detector_name)` against already-open disruptions, so the 30s
+  scheduler tick doesn't re-raise the same thing forever. `DETECTORS` is a
+  plain module-level list — Phase 4b appends its TTM stockout-risk detector to
+  it without editing this file. If the LLM classification fails schema twice,
+  Sentinel falls back to a deterministic detector→type mapping
+  (`_FALLBACK_TYPE_BY_DETECTOR`) rather than dropping the signal.
+- **Every call into `Agent.run()` from async code MUST go through
+  `asyncio.to_thread()`.** Agents are fully synchronous (sync SQLAlchemy
+  session, blocking httpx calls to watsonx) and a single classification round
+  can take several seconds; calling one directly from an `async def` (the
+  background Sentinel loop, `run_pipeline_to_awaiting_approval`, the simulate
+  router) stalls the entire event loop — and therefore every other request
+  the server is handling — for that whole span. This was a real bug found by
+  hand: a single `POST /disruptions/simulate` call made `GET /health` hang for
+  a minute on the same server. `run_sentinel_loop`, `pipeline.py`, and
+  `simulate.py` all wrap their agent calls in `asyncio.to_thread`; a bare
+  `agent.run(ctx)` call inside any `async def` is a regression.
+- `diagnosis.py` — computes exposure via `compute_exposure()`, then ONE LLM
+  call for `{root_cause, narrative (<=280 chars), evidence}`. **Guardian
+  checkpoint #1**: narrative groundedness is checked against the same evidence
+  it was built from. Ungrounded once → regenerate once. Ungrounded twice (or
+  the LLM call itself fails schema validation, which can happen independently
+  of groundedness — Granite doesn't always respect a 280-char JSON Schema
+  `maxLength`) → fall back to `_template_narrative()`, built by plain string
+  formatting from the exposure breakdown, and mark
+  `diagnosis_narrative_source="TEMPLATE"`. Both failure modes route to the
+  same fallback for the same reason: never let a narrative-generation problem
+  crash the disruption. `production_critical`/`consumption_rate_known` are
+  derived from whether the affected SKU appears in `inventory_snapshots` —
+  we only claim idle-line cost when we actually track that SKU's consumption,
+  never as a guess (`_is_production_critical`).
+- `sourcing.py` — queries same-category vendors excluding the failed one
+  (not filtered to `is_backup_pool=True` — Phase 2's own D1 fixture uses a
+  primary vendor as an alternate, so "the pool to source from" is broader than
+  that flag). Scoring is a deterministic weighted sum (weights in
+  `settings.sourcing_weight_*`, must sum to 1.0 — enforced by a test) with
+  each component (`reliability`, `lead_time`, `price`, `geography` via
+  haversine distance to the org's plant lat/lng, `relationship`) logged to
+  `audit_log` per candidate so it's explainable. The LLM writes ONE batched
+  rationale per already-ranked top-3 candidates — it never sees the score and
+  cannot change the ranking. `quoted_unit_price_paise`/`quoted_lead_time_days`
+  per candidate are estimates from the vendor's own historical PO data (their
+  actual average price/lead-time), not a live quote — Negotiation (Phase 6)
+  firms these up. After candidates are persisted, exposure is recomputed with
+  the top candidate as `best_backup_quote` (fills in `expedite_premium`) and a
+  NEW `exposure_calcs` row is inserted — `repositories/disruptions.py` already
+  reads the most-recent-by-`computed_at` row, so this supersedes the earlier
+  one for API responses while keeping history.
+
+## Orchestrator (`app/orchestrator/`)
+
+- `engine.py` — `ALLOWED_TRANSITIONS: dict[stage, set[stage]]` +
+  `transition(session, org_id, disruption, to_stage, actor_type, actor, note=None)`.
+  This is the ONLY place `disruption.stage` may change, and it's illegal to
+  bypass: `transition()` raises `IllegalTransitionError` on an unlisted
+  (from, to) pair, stamps whichever `*_at` column(s) `TIMESTAMP_COLUMNS` maps
+  the transition to, writes one `append_audit` entry, and commits.
+- **The human gate is structural, not conventional.** `HUMAN_ONLY_TRANSITIONS`
+  = `{(AWAITING_APPROVAL,APPROVED), (AWAITING_APPROVAL,REJECTED),
+  (AWAITING_APPROVAL,SOURCING), (SETTLEMENT_PENDING,SETTLED)}` — `transition()`
+  raises if `actor_type != "HUMAN"` on any of these, and `NEGOTIATING` has
+  exactly one legal predecessor (`APPROVED`), so nothing can reach it without
+  first passing the approval endpoint. `tests/test_state_machine.py` asserts
+  both the raise behaviour and the structural single-predecessor property —
+  don't weaken either without updating that test *and* understanding why it
+  existed.
+- `repositories/approvals.py` and `repositories/negotiations.py` route their
+  stage changes through `transition()` (they used to mutate `.stage` directly
+  before Phase 4a — if you ever see `disruption.stage = ...` written anywhere
+  outside `engine.py`, that's a regression, fix it).
+- `pipeline.py` — `run_pipeline_to_awaiting_approval(org_id, disruption_id)`
+  drives DETECTED→DIAGNOSED→SOURCING→AWAITING_APPROVAL (Diagnosis, then
+  Sourcing, with a `transition()` + WS broadcast between each step), creating
+  the `Approval` row itself before the final transition. Stops at
+  AWAITING_APPROVAL on purpose — everything past that needs the human gate.
+  On any agent failure, transitions to FAILED instead of leaving the
+  disruption stuck implying work is still happening.
+- `POST /api/v1/disruptions/simulate` (`app/routers/simulate.py`) — dev-only,
+  gated on `settings.demo_mode` (404s when off). Maps a scenario name to a
+  seeded vendor (`SCENARIOS` dict — only `delivery_delay_castings` is wired
+  in Phase 4a; stockout-risk needs Phase 4b's TTM detector), runs Sentinel
+  once to pick up that vendor's golden-path signal, then runs the pipeline.
+  Idempotent-ish: calling it again on an already-progressed disruption just
+  reports its current stage rather than re-running the pipeline.
+
+## Schema drift note: `Vendor.lat`/`Vendor.lng`, `Organisation.lat`/`lng`
+
+Added in Phase 4a for Sourcing's geographic-proximity score (and the
+frontend's network map). Since there's no Alembic, `python -m app.seed --reset`
+now does `Base.metadata.drop_all()` before `create_all()` — **`--reset` rebuilds
+the schema from current `models.py`, not just row data.** This is deliberate:
+it's the only way an added/changed column doesn't leave a stale table shape on
+Neon. If you add a column, `--reset` is how it actually lands; a plain rerun
+without `--reset` will not pick up a schema change.
+
+**Stop the running app before `--reset`.** `DROP TABLE` needs an
+`ACCESS EXCLUSIVE` lock; the running server's pooled connections (and the
+background Sentinel loop, which queries every 30s) hold locks that collide
+with it — hit this for real: `psycopg.errors.DeadlockDetected` on
+`DROP TABLE audit_log`. Kill the uvicorn process first, reseed, then restart.
 
 ## Adding a new DB-backed endpoint
 
