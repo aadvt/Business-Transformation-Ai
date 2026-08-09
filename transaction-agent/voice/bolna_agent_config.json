@@ -46,7 +46,7 @@
             "tools": [
               {
                 "name": "start_payment_request",
-                "key": "start_payment_request",
+                "key": "custom_task",
                 "description": "Call this exactly once, immediately after the caller states what they want to pay. Pass their words verbatim in transcript — do not reformat, summarize, correct, or restructure the request yourself; the backend parses it.",
                 "parameters": {
                   "type": "object",
@@ -61,7 +61,7 @@
               },
               {
                 "name": "disambiguate_recipient",
-                "key": "disambiguate_recipient",
+                "key": "custom_task",
                 "description": "Call this only when the previous tool response has status pending_recipient_disambiguation and you have just asked the caller the disambiguation question from its spoken_text. Pass their answer.",
                 "parameters": {
                   "type": "object",
@@ -76,7 +76,7 @@
               },
               {
                 "name": "select_payments",
-                "key": "select_payments",
+                "key": "custom_task",
                 "description": "Call this after you have read the payment review (spoken_text from start_payment_request or disambiguate_recipient) to the caller and they have said which payments to approve.",
                 "parameters": {
                   "type": "object",
@@ -91,7 +91,7 @@
               },
               {
                 "name": "confirm_payment",
-                "key": "confirm_payment",
+                "key": "custom_task",
                 "description": "Call this only after select_payments has returned a spoken total and you have asked the caller to explicitly confirm it, and you have their approver username and PIN. NEVER call this directly from a selection utterance — confirmation is always a separate turn.",
                 "parameters": {
                   "type": "object",
