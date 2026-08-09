@@ -607,6 +607,24 @@ here as it's completed, same style as the phase notes above.
 - Tests added to `test_contract.py` verifying phone messages endpoint works and
   returns deterministic results.
 
+### D5a: Bolna agent sheet context delivery
+
+- `app/services/agent_sheet.py` is the single context builder for the manually
+  operated Bolna voice agent. It reuses `get_vendor_context()` for briefing,
+  last terms, and guardrails, and emits fixed positional columns for ranked
+  sourcing candidates or the backup pool.
+- `GET /api/v1/agent/vendor-sheet.csv` is the dependency-free fallback. Google
+  Sheets sync is optional, configured by `GOOGLE_SHEETS_SPREADSHEET_ID`,
+  `GOOGLE_SHEETS_WORKSHEET_NAME`, and `GOOGLE_SERVICE_ACCOUNT_JSON`; it clears
+  and rewrites the worksheet in one batch and fails soft on missing credentials
+  or API errors.
+- `agent_sheet_syncs` records the latest status, row count, timestamp, and
+  reason using portable columns. Candidate completion triggers sync through
+  `asyncio.to_thread` and emits `AGENT_SHEET_SYNCED`; blocking gspread never
+  runs on the event loop and never blocks sourcing.
+- `resolve_vendor()` establishes D5b's correlation ladder: exact extracted
+  `vendor_id`, normalized phone, then newest pending negotiation session.
+
 ## Adding a new DB-backed endpoint
 
 1. Table already exists? Add/extend the ORM model in `app/db/models.py`

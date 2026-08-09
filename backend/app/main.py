@@ -16,6 +16,8 @@ from app.observability import configure_logging, set_correlation_id
 from app.routers import (
     agents,
     approvals,
+    agent,
+    webhooks,
     audit,
     dashboard,
     demo,
@@ -93,6 +95,8 @@ app.include_router(vendors.router)
 app.include_router(public.router)  # D2: public vendor directory, no API key required
 app.include_router(dashboard.router)
 app.include_router(approvals.router)
+app.include_router(agent.router)
+app.include_router(webhooks.router)
 app.include_router(settlements.router)
 app.include_router(audit.router)
 app.include_router(metrics.router)

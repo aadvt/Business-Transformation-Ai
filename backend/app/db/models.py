@@ -263,6 +263,42 @@ class RemediationPlanRow(Base, IdMixin):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
+class AgentSheetSync(Base, IdMixin):
+    __tablename__ = "agent_sheet_syncs"
+
+    org_id: Mapped[str] = mapped_column(String(36), ForeignKey("organisations.id"), index=True)
+    disruption_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("disruption_events.id"), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(20))
+    rows_written: Mapped[int] = mapped_column(Integer, default=0)
+    synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class CallSession(Base, IdMixin):
+    __tablename__ = "call_sessions"
+
+    disruption_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("disruption_events.id"), nullable=True, index=True)
+    vendor_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("vendors.id"), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(30), default="DIALING")
+    source: Mapped[str] = mapped_column(String(20), default="LIVE_BOLNA")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    language: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    briefing_snapshot: Mapped[dict] = mapped_column(JSON, default=dict)
+    guardrails: Mapped[dict] = mapped_column(JSON, default=dict)
+    transcript: Mapped[list] = mapped_column(JSON, default=list)
+    extracted: Mapped[dict] = mapped_column(JSON, default=dict)
+    validation: Mapped[dict] = mapped_column(JSON, default=dict)
+    bolna_execution_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    webhook_raw: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    webhook_received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    correlation_method: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    outcome_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    guardian_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    guardian_detail: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
 class AgentRun(Base, IdMixin):
     __tablename__ = "agent_runs"
 

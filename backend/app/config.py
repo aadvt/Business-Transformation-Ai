@@ -109,6 +109,13 @@ class Settings(BaseSettings):
     transaction_agent_base_url: str = "http://127.0.0.1:8001"
     transaction_agent_api_key: str = "dev-local-key"
 
+    # D5a: Bolna context delivery. The CSV path works without these values.
+    google_sheets_spreadsheet_id: str = ""
+    google_sheets_worksheet_name: str = "Vendors"
+    google_service_account_json: str = ""
+    bolna_webhook_public_url: str = "https://affecting-gains-thinner.ngrok-free.dev"
+    bolna_webhook_secret: str = ""
+
     @property
     def watsonx_configured(self) -> bool:
         return bool(self.watsonx_api_key and self.watsonx_project_id and self.watsonx_url)

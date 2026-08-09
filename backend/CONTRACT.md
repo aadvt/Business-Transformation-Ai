@@ -656,6 +656,28 @@ prose, no markdown. `briefing` ≤ 300 chars, one sentence, speakable as-is.
 
 ---
 
+### `GET /api/v1/agent/vendor-sheet.csv?disruption_id=` (Demo D5a)
+
+CSV fallback for the manually operated Bolna agent. With a disruption id it
+contains ranked sourcing candidates; without one it contains the backup pool.
+The fixed positional columns are: `vendor_id`, `vendor_name`, `phone`,
+`language`, `category`, `item_name`, `required_qty`, `target_unit_price`,
+`max_unit_price`, `max_lead_time_days`, `last_agreed_price`, `reliability`,
+`briefing`, `updated_at`. Prices are human-readable rupee strings because the
+agent speaks them aloud.
+
+### `POST /api/v1/agent/sync-sheet` (Demo D5a)
+
+Request: `{ "disruption_id": "optional-uuid" }`. Rewrites the configured
+Google worksheet in one batch. Missing credentials or a Google API failure
+returns `status: "UNAVAILABLE"` with `reason` and does not fail the pipeline.
+Success returns `status`, `rows_written`, `worksheet`, and `synced_at`.
+
+Vendor correlation for the D5b webhook is ordered: exact `vendor_id` from
+extracted data, normalized callee phone matched to `vendors.phone`, then the
+most recent pending call session, then no match. Phone comparison strips
+punctuation, an optional `+91` or `0`, and compares the final ten digits.
+
 ### `POST /api/v1/negotiations/{negotiation_id}/outcome`
 
 **Request:**

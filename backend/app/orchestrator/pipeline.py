@@ -25,6 +25,7 @@ from app.schemas.money import utc_now
 from app.services.audit import append_audit
 from app.services.impact import get_or_build_impact_graph
 from app.services.planner import build_plan
+from app.services.agent_sheet import sync_sheet
 from app.ws_manager import live_feed
 
 logger = logging.getLogger("sanjeevani.orchestrator")
@@ -104,6 +105,10 @@ async def run_pipeline_to_awaiting_approval(org_id: str, disruption_id: str) -> 
             await _broadcast_stage(disruption)
             return sourcing_result
 
+        # D5a: gspread is blocking and optional; keep the pipeline responsive.
+        sync_result = await asyncio.to_thread(_sync_agent_sheet, org_id, disruption_id)
+        await live_feed.broadcast(WSEventType.AGENT_SHEET_SYNCED, payload=sync_result, disruption_id=disruption_id)
+
         # D3: build remediation plan before approval (may not always succeed)
         candidates = session.query(VendorCandidate).filter_by(disruption_id=disruption_id).order_by(VendorCandidate.rank).all()
         plan_row = None
@@ -132,6 +137,10 @@ async def run_pipeline_to_awaiting_approval(org_id: str, disruption_id: str) -> 
         )
 
         return sourcing_result
+
+def _sync_agent_sheet(org_id: str, disruption_id: str) -> dict:
+    with SessionLocal() as session:
+        return sync_sheet(session, org_id, disruption_id)
 
 
 def _compute_impact_and_audit(session, org_id: str, disruption: DisruptionEvent):

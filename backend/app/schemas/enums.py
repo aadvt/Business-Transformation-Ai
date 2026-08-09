@@ -125,6 +125,16 @@ class WSEventType(StrEnum):
     CALL_ENDED = "CALL_ENDED"
     INGEST_PROGRESS = "INGEST_PROGRESS"
     BRIEFING_READY = "BRIEFING_READY"
+    AGENT_SHEET_SYNCED = "AGENT_SHEET_SYNCED"
+
+
+class CallStatus(StrEnum):
+    DIALING = "DIALING"
+    CONNECTED = "CONNECTED"
+    NEGOTIATING = "NEGOTIATING"
+    CONFIRMED = "CONFIRMED"
+    FAILED = "FAILED"
+    ENDED = "ENDED"
 
 
 class GraphNodeKind(StrEnum):
@@ -147,15 +157,6 @@ class ScenarioKind(StrEnum):
     PRICE_HIKE = "PRICE_HIKE"
     DELAYED = "DELAYED"
     SHUT_DOWN = "SHUT_DOWN"
-
-
-class CallStatus(StrEnum):
-    DIALING = "DIALING"
-    CONNECTED = "CONNECTED"
-    NEGOTIATING = "NEGOTIATING"
-    CONFIRMED = "CONFIRMED"
-    FAILED = "FAILED"
-    ENDED = "ENDED"
 
 
 class PlanChangeKind(StrEnum):
