@@ -17,7 +17,7 @@
     "guardian": "STUB",
     "supermemory": "STUB",
     "verification": "STUB",
-    "ttm": "NOT_CONFIGURED",
+    "ttm": "LIVE",
     "orchestrate": "NOT_CONFIGURED",
     "neon": "LIVE"
   }

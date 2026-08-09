@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.agents.detectors import ttm_forecast  # importing this registers TTM into Sentinel.DETECTORS
 from app.agents.sentinel import run_sentinel_loop
 from app.config import settings
 from app.constants import DEFAULT_ORG_ID
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI):
         except Exception:
             logger.exception("Database connectivity check FAILED at startup — is DATABASE_URL reachable?")
         keepalive.start()
+        await ttm_forecast.start_background_load()  # schedules on a worker thread, returns immediately
         _background_tasks.append(asyncio.create_task(run_sentinel_loop(DEFAULT_ORG_ID)))
 
     _background_tasks.append(asyncio.create_task(run_heartbeat()))

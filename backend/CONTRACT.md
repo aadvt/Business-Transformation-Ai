@@ -374,13 +374,20 @@ See the [WebSocket event catalogue](#websocket-event-catalogue) below.
 
 ---
 
-### `POST /api/v1/disruptions/simulate` (dev-only, Phase 4a)
+### `POST /api/v1/disruptions/simulate` (dev-only, Phase 4a/4b)
 
 Not part of the stable contract — a demo/dev trigger, gated on `DEMO_MODE`
 (default on; 404s when off in a real deployment). Runs Sentinel against the
 named seeded golden-path scenario, then the Diagnosis and Sourcing agents,
 stopping at `AWAITING_APPROVAL` (the human gate — see `CLAUDE.md`'s
 orchestrator section).
+
+Supported `scenario` values:
+- `"delivery_delay_castings"` — rule-based `overdue_delivery` detector;
+  resulting disruption's `detector_source` is `RULE_BASED`.
+- `"stockout_risk"` — Phase 4b's TTM detector; resulting disruption's
+  `detector_source` is `TTM_FORECAST` — this is the one to point at when the
+  pitch needs "this alert came from IBM's time-series model, not a rule."
 
 **Request:** `{ "scenario": "delivery_delay_castings" }`
 
