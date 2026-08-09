@@ -2,14 +2,25 @@
 
 import { useState } from "react";
 import { CheckCircle2, Layers, Wallet } from "lucide-react";
+import { toast } from "sonner";
 import { useConfirmSettlementBatch, useExecuteSettlementBatch, useSettlementBatches } from "@/lib/queries";
 import { formatPaiseFull } from "@/lib/format";
 import StatTile from "@/components/StatTile";
 import TileGrid from "@/components/ui/TileGrid";
-import Skeleton from "@/components/ui/Skeleton";
-import Badge from "@/components/ui/Badge";
-import Button from "@/components/ui/Button";
-import Toast from "@/components/ui/Toast";
+import Skeleton from "@/components/ui/skeleton";
+import Badge from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import PageHeader, { EmptyState, SectionHeading } from "@/components/PageHeader";
 import type { SettlementBatch, TransactionAgentHandoff } from "@/lib/types";
 
@@ -33,6 +44,7 @@ interface BatchCardProps {
 function BatchCard({ batch, onConfirmed }: BatchCardProps) {
   const confirm = useConfirmSettlementBatch();
   const execute = useExecuteSettlementBatch();
+  const [confirmingExecute, setConfirmingExecute] = useState(false);
 
   return (
     <div className="panel-flush mb-3">
@@ -57,52 +69,88 @@ function BatchCard({ batch, onConfirmed }: BatchCardProps) {
             </Button>
           )}
           {batch.status === "CONFIRMED" && (
-            <Button
-              size="sm"
-              icon={<Wallet size={13} />}
-              onClick={() =>
-                execute.mutate({ batchId: batch.id }, { onSuccess: (data) => onConfirmed(batch, data.transaction_agent) })
-              }
-              disabled={execute.isPending}
-            >
-              {execute.isPending ? "Executing…" : "Execute payout"}
-            </Button>
+            <Dialog open={confirmingExecute} onOpenChange={setConfirmingExecute}>
+              <DialogTrigger render={<Button size="sm" icon={<Wallet size={13} />} disabled={execute.isPending} />}>
+                {execute.isPending ? "Executing…" : "Execute payout"}
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Execute payout for batch {batch.month}?</DialogTitle>
+                  <DialogDescription>
+                    {batch.total_display} across {batch.lines.length} invoice{batch.lines.length === 1 ? "" : "s"} will
+                    be handed to the transaction agent for execution. This cannot be undone from here.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <DialogClose render={<Button variant="secondary" size="sm" />}>Cancel</DialogClose>
+                  <Button
+                    size="sm"
+                    icon={<Wallet size={13} />}
+                    onClick={() => {
+                      execute.mutate(
+                        { batchId: batch.id },
+                        {
+                          onSuccess: (data) => {
+                            onConfirmed(batch, data.transaction_agent);
+                            setConfirmingExecute(false);
+                          },
+                        }
+                      );
+                    }}
+                    disabled={execute.isPending}
+                  >
+                    {execute.isPending ? "Executing…" : "Confirm & execute"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           )}
         </div>
       </div>
 
-      <table className="w-full text-left">
-        <thead>
-          <tr className="border-b border-line">
-            <th className="eyebrow px-4 py-2 font-semibold">Vendor</th>
-            <th className="eyebrow px-4 py-2 font-semibold">Invoice</th>
-            <th className="eyebrow px-4 py-2 font-semibold">Due</th>
-            <th className="eyebrow px-4 py-2 text-right font-semibold">Amount</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Vendor</TableHead>
+            <TableHead>Invoice</TableHead>
+            <TableHead>Due</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {batch.lines.map((line) => (
-            <tr key={line.invoice_id} className="row-hover border-b border-line last:border-b-0">
-              <td className="px-4 py-2 text-[13px] font-medium text-ink">{line.vendor.name}</td>
-              <td className="numeric px-4 py-2 text-xs text-ink-muted">{line.invoice_id}</td>
-              <td className="numeric px-4 py-2 text-xs text-ink-muted">{line.due_date}</td>
-              <td className="numeric px-4 py-2 text-right text-[13px] text-ink">{line.amount_display}</td>
-            </tr>
+            <TableRow key={line.invoice_id}>
+              <TableCell className="font-medium">{line.vendor.name}</TableCell>
+              <TableCell className="numeric text-xs text-ink-muted">{line.invoice_id}</TableCell>
+              <TableCell className="numeric text-xs text-ink-muted">{line.due_date}</TableCell>
+              <TableCell className="numeric text-right">{line.amount_display}</TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
 
 export default function SettlementPage() {
   const { data, isLoading } = useSettlementBatches();
-  const [confirmation, setConfirmation] = useState<{ month: string; amount: string; threadId?: string } | null>(null);
 
   const batches = data?.items ?? [];
   const outstandingPaise = batches.filter((b) => b.status !== "CONFIRMED").reduce((sum, b) => sum + b.total_paise, 0);
   const confirmedCount = batches.filter((b) => b.status === "CONFIRMED").length;
   const lineCount = batches.reduce((sum, b) => sum + b.lines.length, 0);
+
+  function handleConfirmed(batch: SettlementBatch, handoff?: TransactionAgentHandoff | null) {
+    if (handoff?.thread_id) {
+      toast.success("Settlement staged", {
+        description: `Batch ${batch.month} · ${batch.total_display} — staged with the transaction agent (thread ${handoff.thread_id.slice(0, 8)}…), pending its own approval.`,
+      });
+    } else {
+      toast.success("Batch confirmed", {
+        description: `Batch ${batch.month} · ${batch.total_display} — confirmed. Execute to hand it to the transaction agent.`,
+      });
+    }
+  }
 
   return (
     <div>
@@ -122,18 +170,6 @@ export default function SettlementPage() {
         </TileGrid>
       )}
 
-      {confirmation && (
-        <Toast
-          title="Settlement staged"
-          subtitle={
-            confirmation.threadId
-              ? `Batch ${confirmation.month} · ${confirmation.amount} — staged with the transaction agent (thread ${confirmation.threadId.slice(0, 8)}…), pending its own approval.`
-              : `Batch ${confirmation.month} · ${confirmation.amount} — confirmed. Execute to hand it to the transaction agent.`
-          }
-          onClose={() => setConfirmation(null)}
-        />
-      )}
-
       <section>
         <SectionHeading count={batches.length}>Payout batches</SectionHeading>
         {isLoading ? (
@@ -141,15 +177,7 @@ export default function SettlementPage() {
         ) : batches.length === 0 ? (
           <EmptyState>No settlement batches yet.</EmptyState>
         ) : (
-          batches.map((batch) => (
-            <BatchCard
-              key={batch.id}
-              batch={batch}
-              onConfirmed={(b, handoff) =>
-                setConfirmation({ month: b.month, amount: b.total_display, threadId: handoff?.thread_id })
-              }
-            />
-          ))
+          batches.map((batch) => <BatchCard key={batch.id} batch={batch} onConfirmed={handleConfirmed} />)
         )}
       </section>
     </div>

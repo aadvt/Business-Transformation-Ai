@@ -1,9 +1,9 @@
-"""SKU forecast — derives history + a simple linear trend forecast from
-inventory_snapshots. `model` is always RULE_BASED in Phase 2: the real TTM
-(granite-timeseries-ttm-r2) integration is still STUB (see README's
-integration status table), so claiming otherwise here would be dishonest.
-The `detector_source`/`model` distinction exists precisely so the frontend can
-show this provenance once TTM actually goes LIVE.
+"""SKU forecast. Tries the real TTM (IBM Granite TinyTimeMixer) zero-shot
+forecast first; if TTM isn't loaded/available/has too little history for a
+given SKU, falls back to a simple linear-trend extrapolation with
+`model="RULE_BASED"` — this endpoint must never 500 regardless of TTM's
+state. The `model` field is the honest record of which one actually answered;
+see README's integration status table and CLAUDE.md.
 """
 
 from collections import defaultdict
@@ -12,7 +12,9 @@ from datetime import timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agents.detectors import ttm_forecast
 from app.db.models import InventorySnapshot
+from app.schemas.enums import ForecastModel
 from app.schemas.forecast import Forecast, ForecastPoint
 from app.schemas.money import to_iso
 
@@ -28,7 +30,36 @@ def _linreg(xs: list[float], ys: list[float]) -> tuple[float, float]:
     return slope, mean_y - slope * mean_x
 
 
-def get_forecast(session: Session, sku: str) -> Forecast | None:
+def _get_forecast_ttm(session: Session, sku: str) -> Forecast | None:
+    if not ttm_forecast.is_available():
+        return None
+    # Single-tenant demo — look up by SKU alone rather than threading org_id
+    # through the forecast router just for this.
+    history_rows = session.execute(
+        select(InventorySnapshot)
+        .where(InventorySnapshot.sku == sku)
+        .order_by(InventorySnapshot.at.desc())
+        .limit(600)
+    ).scalars().all()
+    history_rows = list(reversed(history_rows))
+    if not history_rows:
+        return None
+
+    result = ttm_forecast.run_forecast(sku, history_rows)
+    if result is None:
+        return None
+
+    return Forecast(
+        sku=sku,
+        history=[ForecastPoint(at=to_iso(p.at), value=round(p.value, 1)) for p in result.history[-_HISTORY_DAYS * 24 :]],
+        forecast=[ForecastPoint(at=to_iso(p.at), value=round(p.value, 1)) for p in result.forecast],
+        reorder_point=result.reorder_point,
+        projected_breach_at=to_iso(result.projected_breach_at) if result.projected_breach_at else None,
+        model=ForecastModel.TTM,
+    )
+
+
+def _get_forecast_rule_based(session: Session, sku: str) -> Forecast | None:
     rows = session.execute(
         select(InventorySnapshot).where(InventorySnapshot.sku == sku).order_by(InventorySnapshot.at)
     ).scalars().all()
@@ -63,3 +94,10 @@ def get_forecast(session: Session, sku: str) -> Forecast | None:
         sku=sku, history=history, forecast=forecast, reorder_point=reorder_point,
         projected_breach_at=projected_breach_at, model="RULE_BASED",
     )
+
+
+def get_forecast(session: Session, sku: str) -> Forecast | None:
+    ttm_result = _get_forecast_ttm(session, sku)
+    if ttm_result is not None:
+        return ttm_result
+    return _get_forecast_rule_based(session, sku)
