@@ -111,6 +111,19 @@ async def run_pipeline_to_awaiting_approval(org_id: str, disruption_id: str) -> 
 
         # D3: build remediation plan before approval (may not always succeed)
         candidates = session.query(VendorCandidate).filter_by(disruption_id=disruption_id).order_by(VendorCandidate.rank).all()
+
+        # The candidate rail on /command is driven by this event. Until now the
+        # only thing emitting CANDIDATES_FOUND was the scripted mock replay, so
+        # a real run either showed no rail at all or — worse — showed the mock
+        # disruption's candidates, and the plan panel (which waits on the rail)
+        # never opened.
+        if candidates:
+            await live_feed.broadcast(
+                WSEventType.CANDIDATES_FOUND,
+                payload={"disruption_id": disruption_id, "count": len(candidates)},
+                disruption_id=disruption_id,
+            )
+
         plan_row = None
         if candidates:
             plan_row = await asyncio.to_thread(_build_and_persist_plan, session, disruption, candidates)

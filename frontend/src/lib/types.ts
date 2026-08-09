@@ -738,6 +738,11 @@ export interface SimulateDisruptionRequest {
 export interface SimulateDisruptionResponse {
   disruption_id: string;
   stage: DisruptionStage;
+  scenario?: string;
+  // false when the vendor already had an open disruption: the backend
+  // reports its current stage and re-runs nothing, so no pipeline events
+  // will follow and the caller has to fetch state itself.
+  newly_triggered?: boolean;
 }
 
 // ---- Public vendor directory (D2) — unauthenticated endpoints, separate

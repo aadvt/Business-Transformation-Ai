@@ -40,9 +40,12 @@ export const CANDIDATE_STAGGER_MS = 180;
 // field.
 export const FIXTURE_PLAN_DELAY_MS = 1100;
 
-// Width the graph canvas shrinks to once the plan diff takes the main area
-// (D3 §1: "the graph shrinks further or moves to a corner").
-export const GRAPH_CORNER_WIDTH = 220;
+// Share of the canvas the graph keeps once the plan diff takes the main area
+// (D3 §1: "the graph shrinks further or moves to a corner"). A percentage,
+// not a fixed 220px: at that width a four-layer graph rendered as unreadable
+// specks, and the approval card — which carries the "Call vendor" button —
+// overflowed the column and hid behind the plan panel.
+export const GRAPH_CORNER_WIDTH = "38%";
 
 // ---- Layout ----
 

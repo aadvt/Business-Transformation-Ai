@@ -84,6 +84,8 @@ This is a local rehearsal path and never alters Neon.
 | `POST /disruptions/simulate` reports an old stage | The disruption already progressed — **Reset demo** first, then trigger |
 | Directory shows "GSTIN verified", not "Verified" | Correct and expected: GSTIN is an offline checksum we can always settle; Udyam needs a provider that isn't configured. Say so if asked — it's the honest badge |
 | Trigger modal's vendor list is empty | `GET /simulate/targets` failed; check the backend log. It should answer in ~1.5s |
+| Canvas shows a disruption you didn't trigger | `MOCK_LIVE_REPLAY` must be `false` in `backend/.env` — when on, it broadcasts a scripted fake disruption every 45s into the live feed |
+| Candidate rail or plan never appears | Sourcing found nothing (check the SOURCING `agent_runs` row) — the rail is driven by a real `CANDIDATES_FOUND` from the pipeline |
 
 ## Known timings
 
