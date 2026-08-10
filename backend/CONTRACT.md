@@ -687,13 +687,24 @@ punctuation, an optional `+91` or `0`, and compares the final ten digits.
 
 ### `POST /api/v1/ingest/files` (Demo D6)
 
-Accepts multiple Excel files as multipart uploads and returns immediately with
-an `ingest_id` and queued file records. Processing emits `INGEST_PROGRESS` over
-the live feed. D6 handles messy-but-known-shaped workbooks; it is not a
-general-purpose ETL system. Sheets are classified as `vendor_master`,
-`purchase_log`, `inventory`, `rate_card`, or `unknown`, and header rows may
-occur within the first ten rows. Parsed records use the existing business
-tables and carry `source_file_id` provenance.
+Accepts multiple Excel (`.xlsx`/`.xlsm`) or `.csv` files as multipart uploads
+and returns immediately with an `ingest_id` and queued file records. Processing
+emits `INGEST_PROGRESS` over the live feed. D6 handles messy-but-known-shaped
+workbooks; it is not a general-purpose ETL system. Sheets are classified as
+`vendor_master`, `purchase_log`, `inventory`, `rate_card`, or `unknown`, and
+header rows may occur within the first ten rows. CSV delimiters are sniffed
+(`,` `;` tab `|`). Legacy `.xls` is rejected with a named reason. Parsed
+records use the existing business tables and carry `source_file_id` provenance.
+
+Per file the stages are `PARSING_STARTED` → `SHEETS_FOUND` → per sheet
+`ROWS_FOUND` then `ENTITIES_FOUND` → `DEDUPE_COMPLETE`, or `FAILED` with an
+`error`. `ROWS_FOUND` carries a bounded preview of the parsed data (`headers`,
+`sample_rows`, `total_rows`) so the UI can show the spreadsheet landing rather
+than a counter — at most 8 rows, each cell truncated to 120 chars and coerced
+to a JSON primitive (dates/Decimals stringified). `ENTITIES_FOUND`'s
+`entity_count` is **not** the row count: it counts distinct resolved entities,
+and `entity_kind`/`entity_basis` say what was counted
+(`RESOLVED_VENDOR_NAMES` | `DISTINCT_SKU` | `ROWS_UNRESOLVED`).
 
 ### `GET /api/v1/business/questions`, `GET /api/v1/business/profile`, and `POST /api/v1/business/answers`
 
@@ -857,8 +868,9 @@ Bolna reports back only after the call ends, and the backend then *replays*
 the completed call as a timed reveal (~350ms per transcript turn, ~450ms per
 field; constants at the top of `webhooks.py`). Every `CALL_TRANSCRIPT` event
 carries `phase: "POST_CALL_REVEAL"` — nothing in this API pretends to be a
-live transcript stream. `IMPACT_COMPUTED` (D1), `PLAN_PROPOSED` (D3), and
-`AGENT_SHEET_SYNCED` (D5a) are also live. Sample payloads:
+live transcript stream. `IMPACT_COMPUTED` (D1), `PLAN_PROPOSED` (D3),
+`AGENT_SHEET_SYNCED` (D5a), and `INGEST_PROGRESS` (D6, emitted by
+`app/routers/ingest.py`) are also live. Sample payloads:
 
 ```json
 // IMPACT_COMPUTED — the full ImpactGraph, see GET /disruptions/{id}/impact above
@@ -887,8 +899,27 @@ live transcript stream. `IMPACT_COMPUTED` (D1), `PLAN_PROPOSED` (D3), and
   "new_stage": "NEGOTIATED", "exposure_after": { "total_paise": 0, "total_display": "₹0" },
   "duration_seconds": 92 }
 
-// INGEST_PROGRESS
-{ "ingest_id": "d92f...-uuid", "status": "PARSING", "progress_pct": 40 }
+// INGEST_PROGRESS — one per stage per file; every frame carries ingest_id,
+// file_id, name, stage. ROWS_FOUND additionally carries the capped preview:
+{ "ingest_id": "d92f...-uuid", "file_id": "617e...-uuid", "name": "messy_vendors.xlsx",
+  "stage": "ROWS_FOUND", "sheet": "Vendor Master", "classification": "vendor_master",
+  "confidence": 0.6, "row_count": 12, "total_rows": 12,
+  "headers": ["vendor name", "gstin", "phone", "category", "onboarded on"],
+  "sample_rows": [ { "vendor name": "Bharat Steels Pvt Ltd", "gstin": "29AABCB1234C1Z5",
+                     "onboarded on": "2019-04-12T00:00:00", "credit limit": 500000 } ] }
+
+// INGEST_PROGRESS — ENTITIES_FOUND: resolved entities, not rows
+{ "ingest_id": "d92f...-uuid", "file_id": "617e...-uuid", "name": "messy_vendors.xlsx",
+  "stage": "ENTITIES_FOUND", "sheet": "Vendor Master", "entity_count": 9,
+  "entity_kind": "vendor", "entity_basis": "RESOLVED_VENDOR_NAMES",
+  "entity_source_column": "vendor name", "named_row_count": 12, "merged_group_count": 3,
+  "merged_groups": [["Bharat Steels Pvt Ltd", "Bharat Steel Private Limited"]] }
+
+// INGEST_PROGRESS — terminal frames
+{ "ingest_id": "d92f...-uuid", "file_id": "8161...-uuid", "name": "rate_card.csv",
+  "stage": "DEDUPE_COMPLETE", "parser": "CSV", "status": "COMPLETED" }
+{ "ingest_id": "d92f...-uuid", "file_id": "8161...-uuid", "name": "broken.xls",
+  "stage": "FAILED", "error": "Legacy .xls isn't supported — re-save it as .xlsx or .csv..." }
 
 // BRIEFING_READY
 { "vendor_id": "4c34118b-...", "briefing": "Shree Balaji is a reliable fastener vendor..." }
@@ -901,8 +932,10 @@ as of D0. `CallStatus` (`DIALING | CONNECTED | NEGOTIATING | CONFIRMED |
 FAILED | ENDED`) is the enum backing the `CALL_*` events' `status` field.
 `PlanChangeKind` (`SPLIT_ORDER | SWITCH_VENDOR | PULL_FORWARD_STOCK |
 REDUCE_QUANTITY | EXPEDITE_FREIGHT`) backs `PLAN_PROPOSED`'s `changes[].kind`.
-`IngestStatus` (`QUEUED | PARSING | RESOLVED | FAILED`) backs
-`INGEST_PROGRESS`'s `status` field.
+`IngestStatus` (`QUEUED | PARSING | RESOLVED | FAILED`) backs the per-file
+`status` in `POST /ingest/files`' response. The live `INGEST_PROGRESS` frames
+key off `stage` (see above), not this enum; only the terminal
+`DEDUPE_COMPLETE` frame carries a `status`, and it is `COMPLETED`.
 
 ---
 

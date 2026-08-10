@@ -557,6 +557,15 @@ export interface WSEventPayloads {
     parser?: string;
     status?: IngestStatus;
     error?: string;
+    // ROWS_FOUND only: the header row the parser detected, the first few parsed
+    // rows keyed by that header, and the sheet's full row count so a preview can
+    // say "8 of 412" without implying it has everything. Optional because a
+    // backend that predates them still emits every other ROWS_FOUND key — the
+    // onboarding preview falls back to its findings summary rather than
+    // rendering an empty table.
+    headers?: string[];
+    sample_rows?: Record<string, string | number | boolean | null>[];
+    total_rows?: number;
   };
   BRIEFING_READY: { vendor_id: string; briefing: string };
   AGENT_SHEET_SYNCED: AgentSheetSync;

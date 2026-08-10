@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState, type DragEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertTriangle,
   Boxes,
@@ -11,6 +12,7 @@ import {
   CloudUpload,
   FileSpreadsheet,
   Loader2,
+  Table2,
   Tags,
   WifiOff,
 } from "lucide-react";
@@ -79,12 +81,18 @@ function classificationLabel(raw: string | undefined): string {
 
 type StepId = 1 | 2 | 3;
 
+/** One parsed row as the wire sends it: `{header: value}`, values untyped. */
+type PreviewRow = Record<string, string | number | boolean | null>;
+
 interface SheetFinding {
   sheet: string;
   classification?: string;
   confidence?: number;
   row_count?: number;
   entity_count?: number;
+  headers?: string[];
+  sample_rows?: PreviewRow[];
+  total_rows?: number;
 }
 
 interface FileProgress {
@@ -137,6 +145,9 @@ function applyEvent(existing: FileProgress | undefined, payload: WSEventPayloads
           classification: payload.classification,
           confidence: payload.confidence,
           row_count: payload.row_count,
+          headers: payload.headers,
+          sample_rows: payload.sample_rows,
+          total_rows: payload.total_rows,
         });
       break;
     case "ENTITIES_FOUND":
@@ -392,6 +403,177 @@ function ConfidenceMeter({ value }: { value: number | undefined }) {
   );
 }
 
+/* ---- the parsed sheet itself ---- */
+
+// The contract says eight sample rows. Slicing anyway so a backend that ever
+// sends its whole sheet by accident degrades to a long-ish table rather than
+// dropping tens of thousands of <tr>s into the page mid-parse.
+const PREVIEW_ROW_CAP = 12;
+// Past this the stagger stops feeling like arrival and starts feeling like lag.
+const ROW_STAGGER_S = 0.035;
+
+/** Column order for a sheet: the detected header row, else recovered from the rows. */
+function previewColumns(sheet: SheetFinding): string[] {
+  const columns: string[] = [];
+  const push = (name: string) => {
+    // Duplicate headers would render twice off the same key; blank ones are
+    // the parser's own skipped columns and have no values behind them.
+    if (name.trim() !== "" && !columns.includes(name)) columns.push(name);
+  };
+  for (const header of sheet.headers ?? []) push(header);
+  if (columns.length > 0) return columns;
+  for (const row of sheet.sample_rows ?? []) for (const key of Object.keys(row)) push(key);
+  return columns;
+}
+
+// A date-formatted cell reaches us as a full ISO timestamp, because that is how
+// the backend makes openpyxl's datetime JSON-safe. Dropping a midnight time
+// restores the date the sheet actually held; any real time of day is left alone.
+const ISO_MIDNIGHT = /^(\d{4}-\d{2}-\d{2})T00:00:00(\.0+)?$/;
+
+function cellText(value: PreviewRow[string] | undefined): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "string") return value.replace(ISO_MIDNIGHT, "$1");
+  // Numbers stay unformatted: thousands separators would turn a year into
+  // "2,024" and an SKU code into something that was never in their file.
+  return String(value);
+}
+
+// A CSV hands every cell over as a string, so a price column would otherwise
+// lose tabular figures purely because of how the file was encoded. Strict
+// enough that a GSTIN, a phone number and a contract ref all stay text.
+const NUMERIC_TEXT = /^-?\d+(\.\d+)?$/;
+
+/** Columns where every value present is a figure, so the whole column can align right. */
+function numericColumns(rows: PreviewRow[], columns: string[]): Set<string> {
+  const numeric = new Set<string>();
+  for (const column of columns) {
+    let seen = 0;
+    let allNumeric = true;
+    for (const row of rows) {
+      const value = row[column];
+      if (value === null || value === undefined || value === "") continue;
+      if (typeof value === "number" || (typeof value === "string" && NUMERIC_TEXT.test(value.trim()))) seen += 1;
+      else {
+        allNumeric = false;
+        break;
+      }
+    }
+    if (allNumeric && seen > 0) numeric.add(column);
+  }
+  return numeric;
+}
+
+function SheetPreview({ sheet }: { sheet: SheetFinding }) {
+  const reduceMotion = useReducedMotion();
+  const rows = (sheet.sample_rows ?? []).slice(0, PREVIEW_ROW_CAP);
+  const columns = previewColumns(sheet);
+  const figures = numericColumns(rows, columns);
+  const total = sheet.total_rows ?? sheet.row_count;
+  const unknown = sheet.classification === "unknown";
+
+  return (
+    <section className="border-line not-first:border-t">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Table2 size={14} className="shrink-0 text-ink-faint" />
+          <span className="truncate text-[13.5px] font-semibold text-ink">{sheet.sheet}</span>
+        </span>
+        <span
+          className={clsx(
+            "rounded-full px-2 py-0.5 text-[11px] font-medium",
+            unknown ? "bg-surface-3 text-ink-faint italic" : "bg-accent-dim text-accent"
+          )}
+        >
+          {classificationLabel(sheet.classification)}
+        </span>
+        <ConfidenceMeter value={sheet.confidence} />
+        <span className="ml-auto text-[11px] text-ink-faint">
+          {rows.length === 0 ? (
+            total !== undefined && <><span className="numeric">{total.toLocaleString("en-IN")}</span> rows, none sampled</>
+          ) : total !== undefined && total > rows.length ? (
+            <>
+              Showing <span className="numeric">{rows.length}</span> of{" "}
+              <span className="numeric">{total.toLocaleString("en-IN")}</span> rows
+            </>
+          ) : (
+            <>
+              Showing all <span className="numeric">{rows.length}</span> row{rows.length === 1 ? "" : "s"}
+            </>
+          )}
+          {sheet.entity_count !== undefined && (
+            <>
+              {" · "}
+              <span className="numeric">{sheet.entity_count.toLocaleString("en-IN")}</span> entities
+            </>
+          )}
+        </span>
+      </header>
+
+      {rows.length === 0 || columns.length === 0 ? (
+        <p className="border-t border-line px-4 py-3 text-[11.5px] text-ink-faint">
+          The parser reached this sheet but sent no sample rows for it, so there is nothing to show yet.
+        </p>
+      ) : (
+        <div className="overflow-x-auto border-t border-line">
+          <table className="min-w-full border-collapse">
+            <thead>
+              <tr className="bg-surface-2">
+                <th scope="col" className="eyebrow w-10 px-3 py-2 text-right font-semibold">
+                  #
+                </th>
+                {columns.map((column) => (
+                  <th
+                    key={column}
+                    scope="col"
+                    title={column}
+                    className={clsx(
+                      "eyebrow max-w-[220px] truncate px-3 py-2 font-semibold",
+                      figures.has(column) ? "text-right" : "text-left"
+                    )}
+                  >
+                    {column}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <motion.tr
+                  key={index}
+                  initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.22, delay: index * ROW_STAGGER_S, ease: [0.16, 1, 0.3, 1] }}
+                  className="row-hover border-t border-line"
+                >
+                  <td className="numeric px-3 py-2 text-right text-[11px] text-ink-faint">{index + 1}</td>
+                  {columns.map((column) => {
+                    const text = cellText(row[column]);
+                    return (
+                      <td
+                        key={column}
+                        title={text || undefined}
+                        className={clsx(
+                          "max-w-[240px] truncate px-3 py-2 text-[12.5px]",
+                          figures.has(column) && "numeric text-right",
+                          text === "" ? "text-ink-faint" : "text-ink"
+                        )}
+                      >
+                        {text === "" ? "—" : text}
+                      </td>
+                    );
+                  })}
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function StageChecklist({ progress }: { progress: FileProgress | undefined }) {
   const reached = reachedIndex(progress);
   const failed = progress?.status === "FAILED";
@@ -458,9 +640,14 @@ function FileParseCard({ file, progress }: { file: QueuedFile; progress: FilePro
   const completed = progress?.status === "COMPLETED";
   const started = progress !== undefined;
   const sheets = progress?.sheets ?? [];
+  // One sheet carrying rows is enough to switch the whole file to the preview
+  // layout — it repeats the findings columns per sheet, so showing both would
+  // state the same verdict twice. Against a backend that doesn't send rows yet,
+  // nothing here is true and the findings table stands unchanged.
+  const hasPreview = sheets.some((sheet) => (sheet.sample_rows?.length ?? 0) > 0);
 
   return (
-    <article className="panel-flush">
+    <article className="panel-flush min-w-0">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
         <span
           className={clsx(
@@ -493,7 +680,15 @@ function FileParseCard({ file, progress }: { file: QueuedFile; progress: FilePro
         </div>
       )}
 
-      {sheets.length > 0 && (
+      {sheets.length > 0 && hasPreview && (
+        <div className="border-t border-line">
+          {sheets.map((sheet) => (
+            <SheetPreview key={sheet.sheet} sheet={sheet} />
+          ))}
+        </div>
+      )}
+
+      {sheets.length > 0 && !hasPreview && (
         <div className="border-t border-line">
           <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto_auto_auto] items-center gap-x-4 px-4 pt-3 pb-1.5">
             <span className="eyebrow">Sheet</span>

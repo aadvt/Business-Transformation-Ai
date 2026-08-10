@@ -804,6 +804,51 @@ breaks `test_list_disruptions`'s `total == 3`. Run `python -m app.seed --reset`
   `BusinessProfile` stores the assembled profile and question answers through
   `/api/v1/business/*`.
 
+#### D6a: `INGEST_PROGRESS` shows the data, not just a counter
+
+- **`ROWS_FOUND` carries a bounded preview** — `headers`, `sample_rows`,
+  `total_rows` alongside the untouched `sheet`/`classification`/`confidence`/
+  `row_count`. Built by `parser.sheet_preview()`. Two caps are load-bearing,
+  not cosmetic: `SAMPLE_ROW_LIMIT=8` rows and `CELL_CHAR_LIMIT=120` chars per
+  cell. The live feed replays its whole 50-event ring buffer to every client
+  that connects, so an uncapped preview is paid for once per sheet *and* again
+  per reconnect; a 60-column sheet of free-text remarks would put megabytes
+  through it. Measured frames after the cap: 1.3–2.1 KB.
+- **Cells are coerced via `parser.json_safe_cell()`**, not passed through.
+  openpyxl returns real `datetime`/`date`/`time` objects for date-formatted
+  cells and `Decimal` reaches the same path from typed sources — `json.dumps`
+  (so `WebSocket.send_json`) raises `TypeError` on all of them, which would
+  kill the broadcast and the whole ingest run over one date column. Non-finite
+  floats are stringified too, because `json.dumps` emits bare `NaN`/`Infinity`
+  and that is invalid JSON in the browser. Blank header cells are dropped from
+  `headers` for the same reason `_sheet_from_values` drops them from rows:
+  openpyxl reports thousands of trailing empty columns for a sheet with stray
+  formatting (verified: 3000 empty columns → 2 headers, 89-byte frame).
+- **`ENTITIES_FOUND` counts entities, not rows.** It used to send
+  `entity_count=len(sheet.rows)` — the exact number `ROWS_FOUND` already sent,
+  so the stage was decorative. `parser.count_entities()` now resolves the
+  sheet's identity column: vendor-keyed sheets (`vendor_master`,
+  `purchase_log`) go through the previously-unused `resolve_vendor_names()`
+  fuzzy+GSTIN merge, SKU-keyed sheets (`inventory`, `rate_card`) count
+  distinct SKUs. `entity_kind` / `entity_basis` name the rule that produced
+  the number, and `merged_groups` (capped 5 groups × 4 names) is the
+  inspectable evidence. `resolve_vendor_names` is ~O(rows × distinct vendors)
+  SequenceMatcher work, so it runs under `asyncio.to_thread` (the event-loop
+  rule above applies to it) and only up to `FUZZY_RESOLVE_ROW_LIMIT=2000`
+  rows — past that it counts exact normalized names and reports
+  `entity_basis="DISTINCT_VENDOR_NAMES"` so the payload says which algorithm
+  produced the number. When no identity column exists the count degrades to
+  the row count with `entity_basis="ROWS_UNRESOLVED"` — the one case where the
+  two numbers match, and the payload says so rather than implying a second
+  fact. Real run: a 12-row vendor master → 9 vendors, 3 merged groups; a
+  12-row inventory sheet → 3 SKUs.
+- `DEDUPE_COMPLETE`'s `parser` was hardcoded `"OPENPYXL"` and lied for CSV
+  uploads (`parse_workbook` now also takes `.csv` with a sniffed delimiter, and
+  rejects legacy `.xls` by name rather than handing openpyxl a BIFF file and
+  getting an opaque zipfile error); it now reports `sheets[0].parser`.
+- Stage names and ordering are unchanged — the `/onboarding` frontend depends
+  on both.
+
 ## Adding a new DB-backed endpoint
 
 1. Table already exists? Add/extend the ORM model in `app/db/models.py`
